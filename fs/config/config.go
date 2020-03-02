@@ -1037,7 +1037,7 @@ func UpdateRemote(name string, keyValues rc.Params) error {
 
 	// Work out which options need to be obscured
 	needsObscure := map[string]struct{}{}
-	if fsType := FileGet(name, "type"); fsType != "" {
+	if fsType := FileGet(name, "type"); fsType != "" && fsType != "local" {
 		if ri, err := fs.Find(fsType); err != nil {
 			fs.Debugf(nil, "Couldn't find fs for type %q", fsType)
 		} else {
@@ -1127,7 +1127,9 @@ func fsOption() *fs.Option {
 			Value: item.Name,
 			Help:  item.Description,
 		}
+		// if example.Value != "local" {
 		o.Examples = append(o.Examples, example)
+		// }
 	}
 	o.Examples.Sort()
 	return o
@@ -1205,7 +1207,7 @@ func NewRemote(name string) {
 	for {
 		newType = ChooseOption(fsOption(), name)
 		ri, err = fs.Find(newType)
-		if err != nil {
+		if err != nil || newType == "local" {
 			fmt.Printf("Bad remote %q: %v\n", newType, err)
 			continue
 		}

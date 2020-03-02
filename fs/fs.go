@@ -70,6 +70,7 @@ var (
 	ErrorPermissionDenied            = errors.New("permission denied")
 	ErrorCantShareDirectories        = errors.New("this backend can't share directories with link")
 	ErrorNotImplemented              = errors.New("optional feature not implemented")
+	ErrorNotAllowed                  = errors.New("this backend is not allowed")
 )
 
 // RegInfo provides information about a filesystem
@@ -1136,6 +1137,9 @@ func ParseRemote(path string) (fsInfo *RegInfo, configName, fsPath string, err e
 		} else {
 			m := ConfigMap(nil, configName)
 			fsName, ok = m.Get("type")
+			if fsName == "local" {
+				return nil, "", "", ErrorNotAllowed
+			}
 			if !ok {
 				return nil, "", "", ErrorNotFoundInConfigFile
 			}
