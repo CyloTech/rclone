@@ -61,7 +61,7 @@ func init() {
 		Description: "Yandex Disk",
 		NewFs:       NewFs,
 		Config: func(name string, m configmap.Mapper) {
-			err := oauthutil.Config("yandex", name, m, oauthConfig)
+			err := oauthutil.Config("yandex", name, m, oauthConfig, nil)
 			if err != nil {
 				log.Fatalf("Failed to configure token: %v", err)
 				return
@@ -73,11 +73,6 @@ func init() {
 		}, {
 			Name: config.ConfigClientSecret,
 			Help: "Yandex Client Secret\nLeave blank normally.",
-		}, {
-			Name:     "unlink",
-			Help:     "Remove existing public link to file/folder with link command rather than creating.\nDefault is false, meaning link command will create or retrieve public link.",
-			Default:  false,
-			Advanced: true,
 		}, {
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
@@ -92,9 +87,8 @@ func init() {
 
 // Options defines the configuration for this backend
 type Options struct {
-	Token  string               `config:"token"`
-	Unlink bool                 `config:"unlink"`
-	Enc    encoder.MultiEncoder `config:"encoding"`
+	Token string               `config:"token"`
+	Enc   encoder.MultiEncoder `config:"encoding"`
 }
 
 // Fs represents a remote yandex
@@ -200,12 +194,12 @@ func (f *Fs) setRoot(root string) {
 	f.diskRoot = diskRoot
 }
 
-// filePath returns a escaped file path (f.root, file)
+// filePath returns an escaped file path (f.root, file)
 func (f *Fs) filePath(file string) string {
 	return path.Join(f.diskRoot, file)
 }
 
-// dirPath returns a escaped file path (f.root, file) ending with '/'
+// dirPath returns an escaped file path (f.root, file) ending with '/'
 func (f *Fs) dirPath(file string) string {
 	return path.Join(f.diskRoot, file) + "/"
 }
@@ -502,7 +496,7 @@ func (f *Fs) mkDirs(ctx context.Context, path string) (err error) {
 
 	if err = f.CreateDir(ctx, dirString); err != nil {
 		if apiErr, ok := err.(*api.ErrorResponse); ok {
-			// allready exists
+			// already exists
 			if apiErr.ErrorName != "DiskPathPointsToExistentDirectoryError" {
 				// 2 if it fails then create all directories in the path from root.
 				dirs := strings.Split(dirString, "/") //path separator
@@ -643,13 +637,13 @@ func (f *Fs) Rmdir(ctx context.Context, dir string) error {
 	return f.purgeCheck(ctx, dir, true)
 }
 
-// Purge deletes all the files and the container
+// Purge deletes all the files in the directory
 //
 // Optional interface: Only implement this if you have a way of
 // deleting all the files quicker than just running Remove() on the
 // result of List()
-func (f *Fs) Purge(ctx context.Context) error {
-	return f.purgeCheck(ctx, "", false)
+func (f *Fs) Purge(ctx context.Context, dir string) error {
+	return f.purgeCheck(ctx, dir, false)
 }
 
 // copyOrMoves copies or moves directories or files depending on the method parameter
@@ -801,9 +795,9 @@ func (f *Fs) DirMove(ctx context.Context, src fs.Fs, srcRemote, dstRemote string
 }
 
 // PublicLink generates a public link to the remote path (usually readable by anyone)
-func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err error) {
+func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, unlink bool) (link string, err error) {
 	var path string
-	if f.opt.Unlink {
+	if unlink {
 		path = "/resources/unpublish"
 	} else {
 		path = "/resources/publish"
@@ -830,7 +824,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string) (link string, err er
 		}
 	}
 	if err != nil {
-		if f.opt.Unlink {
+		if unlink {
 			return "", errors.Wrap(err, "couldn't remove public link")
 		}
 		return "", errors.Wrap(err, "couldn't create public link")
@@ -1065,7 +1059,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 	return resp.Body, err
 }
 
-func (o *Object) upload(ctx context.Context, in io.Reader, overwrite bool, mimeType string) (err error) {
+func (o *Object) upload(ctx context.Context, in io.Reader, overwrite bool, mimeType string, options ...fs.OpenOption) (err error) {
 	// prepare upload
 	var resp *http.Response
 	var ur api.AsyncInfo
@@ -1073,6 +1067,7 @@ func (o *Object) upload(ctx context.Context, in io.Reader, overwrite bool, mimeT
 		Method:     "GET",
 		Path:       "/resources/upload",
 		Parameters: url.Values{},
+		Options:    options,
 	}
 
 	opts.Parameters.Set("path", o.fs.opt.Enc.FromStandardPath(o.filePath()))
@@ -1121,7 +1116,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 	}
 
 	//upload file
-	err = o.upload(ctx, in1, true, fs.MimeType(ctx, src))
+	err = o.upload(ctx, in1, true, fs.MimeType(ctx, src), options...)
 	if err != nil {
 		return err
 	}

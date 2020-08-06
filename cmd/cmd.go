@@ -66,6 +66,7 @@ const (
 	exitCodeNoRetryError
 	exitCodeFatalError
 	exitCodeTransferExceeded
+	exitCodeNoFilesTransferred
 )
 
 // ShowVersion prints the version to stdout
@@ -75,7 +76,7 @@ func ShowVersion() {
 	fmt.Printf("- go version: %s\n", runtime.Version())
 }
 
-// NewFsFile creates a Fs from a name but may point to a file.
+// NewFsFile creates an Fs from a name but may point to a file.
 //
 // It returns a string with the file name if points to a file
 // otherwise "".
@@ -98,7 +99,7 @@ func NewFsFile(remote string) (fs.Fs, string) {
 	return nil, ""
 }
 
-// newFsFileAddFilter creates a src Fs from a name
+// newFsFileAddFilter creates an src Fs from a name
 //
 // This works the same as NewFsFile however it adds filters to the Fs
 // to limit it to a single file if the remote pointed to a file.
@@ -312,6 +313,7 @@ func Run(Retry bool, showStats bool, cmd *cobra.Command, f func() error) {
 		}
 	}
 	resolveExitCode(cmdErr)
+
 }
 
 // CheckArgs checks there are enough arguments and prints a message if not
@@ -430,6 +432,11 @@ func initConfig() {
 func resolveExitCode(err error) {
 	atexit.Run()
 	if err == nil {
+		if fs.Config.ErrorOnNoTransfer {
+			if accounting.GlobalStats().GetTransfers() == 0 {
+				os.Exit(exitCodeNoFilesTransferred)
+			}
+		}
 		os.Exit(exitCodeSuccess)
 	}
 
@@ -479,6 +486,9 @@ func AddBackendFlags() {
 					help = help[:nl]
 				}
 				help = strings.TrimSpace(help)
+				if opt.IsPassword {
+					help += " (obscured)"
+				}
 				flag := pflag.CommandLine.VarPF(opt, name, opt.ShortOpt, help)
 				if _, isBool := opt.Default.(bool); isBool {
 					flag.NoOptDefVal = "true"
