@@ -6,6 +6,7 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
+	"path"
 	"strings"
 	"time"
 
@@ -22,8 +23,8 @@ func init() {
 		Title:        "List the given remote and path in JSON format",
 		Help: `This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 - opt - a dictionary of options to control the listing (optional)
     - recurse - If set recurse directories
     - noModTime - If set return modification time
@@ -73,7 +74,7 @@ func init() {
 		Title:        "Return the space used on the remote",
 		Help: `This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 
 The result is as returned from rclone about --json
 
@@ -119,10 +120,10 @@ func init() {
 			Title: name + " a file from source remote to destination remote",
 			Help: `This takes the following parameters
 
-- srcFs - a remote name string eg "drive:" for the source
-- srcRemote - a path within that remote eg "file.txt" for the source
-- dstFs - a remote name string eg "drive2:" for the destination
-- dstRemote - a path within that remote eg "file2.txt" for the destination
+- srcFs - a remote name string e.g. "drive:" for the source
+- srcRemote - a path within that remote e.g. "file.txt" for the source
+- dstFs - a remote name string e.g. "drive2:" for the destination
+- dstRemote - a path within that remote e.g. "file2.txt" for the destination
 `,
 		})
 	}
@@ -160,7 +161,7 @@ func init() {
 		{name: "cleanup", title: "Remove trashed files in the remote or path", noRemote: true},
 	} {
 		op := op
-		remote := "- remote - a path within that remote eg \"dir\"\n"
+		remote := "- remote - a path within that remote e.g. \"dir\"\n"
 		if op.noRemote {
 			remote = ""
 		}
@@ -174,7 +175,7 @@ func init() {
 			Title: op.title,
 			Help: `This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 ` + remote + op.help + `
 See the [` + op.name + ` command](/commands/rclone_` + op.name + `/) command for more information on the above.
 `,
@@ -182,7 +183,7 @@ See the [` + op.name + ` command](/commands/rclone_` + op.name + `/) command for
 	}
 }
 
-// Run a single command, eg Mkdir
+// Run a single command, e.g. Mkdir
 func rcSingleCommand(ctx context.Context, in rc.Params, name string, noRemote bool) (out rc.Params, err error) {
 	var (
 		f      fs.Fs
@@ -253,7 +254,7 @@ func rcSingleCommand(ctx context.Context, in rc.Params, name string, noRemote bo
 					return nil, err
 				}
 				if p.FileName() != "" {
-					obj, err := Rcat(ctx, f, p.FileName(), p, time.Now())
+					obj, err := Rcat(ctx, f, path.Join(remote, p.FileName()), p, time.Now())
 					if err != nil {
 						return nil, err
 					}
@@ -276,7 +277,7 @@ func init() {
 		Title:        "Count the number of bytes and files in remote",
 		Help: `This takes the following parameters
 
-- fs - a remote name string eg "drive:path/to/dir"
+- fs - a remote name string e.g. "drive:path/to/dir"
 
 Returns
 
@@ -312,10 +313,10 @@ func init() {
 		Title:        "Create or retrieve a public link to the given file or folder.",
 		Help: `This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 - unlink - boolean - if set removes the link rather than adding it (optional)
-- expire - string - the expiry time of the link eg "1d" (optional)
+- expire - string - the expiry time of the link e.g. "1d" (optional)
 
 Returns
 
@@ -353,7 +354,7 @@ func init() {
 		Title: "Return information about the remote",
 		Help: `This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 
 This returns info about the remote passed in;
 
@@ -433,7 +434,7 @@ func init() {
 		Help: `This takes the following parameters
 
 - command - a string with the command name
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 - arg - a list of arguments for the backend command
 - opt - a map of string to string of options
 

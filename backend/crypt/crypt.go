@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/cache"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/rclone/rclone/fs/config/obscure"
@@ -29,7 +30,7 @@ func init() {
 		CommandHelp: commandHelp,
 		Options: []fs.Option{{
 			Name:     "remote",
-			Help:     "Remote to encrypt/decrypt.\nNormally should contain a ':' and a path, eg \"myremote:path/to/dir\",\n\"myremote:bucket\" or maybe \"myremote:\" (not recommended).",
+			Help:     "Remote to encrypt/decrypt.\nNormally should contain a ':' and a path, e.g. \"myremote:path/to/dir\",\n\"myremote:bucket\" or maybe \"myremote:\" (not recommended).",
 			Required: true,
 		}, {
 			Name:    "filename_encryption",
@@ -75,7 +76,7 @@ NB If filename_encryption is "off" then this option will do nothing.`,
 		}, {
 			Name:    "server_side_across_configs",
 			Default: false,
-			Help: `Allow server side operations (eg copy) to work across different crypt configs.
+			Help: `Allow server-side operations (e.g. copy) to work across different crypt configs.
 
 Normally this option is not what you want, but if you have two crypts
 pointing to the same backend you can use it.
@@ -158,24 +159,25 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 	if strings.HasPrefix(remote, name+":") {
 		return nil, errors.New("can't point crypt remote at itself - check the value of the remote setting")
 	}
-	wInfo, wName, wPath, wConfig, err := fs.ConfigFs(remote)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse remote %q to wrap", remote)
-	}
-	// Make sure to remove trailing . reffering to the current dir
+	// Make sure to remove trailing . referring to the current dir
 	if path.Base(rpath) == "." {
 		rpath = strings.TrimSuffix(rpath, ".")
 	}
 	// Look for a file first
-	remotePath := fspath.JoinRootPath(wPath, cipher.EncryptFileName(rpath))
-	wrappedFs, err := wInfo.NewFs(wName, remotePath, wConfig)
-	// if that didn't produce a file, look for a directory
-	if err != fs.ErrorIsFile {
-		remotePath = fspath.JoinRootPath(wPath, cipher.EncryptDirName(rpath))
-		wrappedFs, err = wInfo.NewFs(wName, remotePath, wConfig)
+	var wrappedFs fs.Fs
+	if rpath == "" {
+		wrappedFs, err = cache.Get(remote)
+	} else {
+		remotePath := fspath.JoinRootPath(remote, cipher.EncryptFileName(rpath))
+		wrappedFs, err = cache.Get(remotePath)
+		// if that didn't produce a file, look for a directory
+		if err != fs.ErrorIsFile {
+			remotePath = fspath.JoinRootPath(remote, cipher.EncryptDirName(rpath))
+			wrappedFs, err = cache.Get(remotePath)
+		}
 	}
 	if err != fs.ErrorIsFile && err != nil {
-		return nil, errors.Wrapf(err, "failed to make remote %s:%q to wrap", wName, remotePath)
+		return nil, errors.Wrapf(err, "failed to make remote %q to wrap", remote)
 	}
 	f := &Fs{
 		Fs:     wrappedFs,
@@ -184,6 +186,7 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 		opt:    *opt,
 		cipher: cipher,
 	}
+	cache.PinUntilFinalized(f.Fs, f)
 	// the features here are ones we could support, and they are
 	// ANDed with the ones from wrappedFs
 	f.features = (&fs.Features{
@@ -438,10 +441,10 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 	if do == nil {
 		return fs.ErrorCantPurge
 	}
-	return do(ctx, dir)
+	return do(ctx, f.cipher.EncryptDirName(dir))
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -466,7 +469,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	return f.newObject(oResult), nil
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -492,7 +495,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //

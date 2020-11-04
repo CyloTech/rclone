@@ -118,7 +118,7 @@ func (fh *RWFileHandle) String() string {
 	return fh.file.String() + " (rw)"
 }
 
-// Node returns the Node assocuated with this - satisfies Noder interface
+// Node returns the Node associated with this - satisfies Noder interface
 func (fh *RWFileHandle) Node() Node {
 	fh.mu.Lock()
 	defer fh.mu.Unlock()
@@ -260,7 +260,9 @@ func (fh *RWFileHandle) _readAt(b []byte, off int64, release bool) (n int, err e
 		// Do the writing with fh.mu unlocked
 		fh.mu.Unlock()
 	}
+
 	n, err = fh.item.ReadAt(b, off)
+
 	if release {
 		fh.mu.Lock()
 	}

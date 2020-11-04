@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/okzk/sdnotify"
+	sysdnotify "github.com/iguanesolutions/go-systemd/v5/notify"
 	"github.com/pkg/errors"
 	"github.com/rclone/rclone/cmd"
 	"github.com/rclone/rclone/fs"
@@ -83,8 +83,8 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	rc.AddOption("mount", &Opt)
 	flags.BoolVarP(flagSet, &Opt.DebugFUSE, "debug-fuse", "", Opt.DebugFUSE, "Debug the FUSE internals - needs -v.")
 	flags.BoolVarP(flagSet, &Opt.AllowNonEmpty, "allow-non-empty", "", Opt.AllowNonEmpty, "Allow mounting over a non-empty directory (not Windows).")
-	flags.BoolVarP(flagSet, &Opt.AllowRoot, "allow-root", "", Opt.AllowRoot, "Allow access to root user.")
-	flags.BoolVarP(flagSet, &Opt.AllowOther, "allow-other", "", Opt.AllowOther, "Allow access to other users.")
+	flags.BoolVarP(flagSet, &Opt.AllowRoot, "allow-root", "", Opt.AllowRoot, "Allow access to root user (not Windows).")
+	flags.BoolVarP(flagSet, &Opt.AllowOther, "allow-other", "", Opt.AllowOther, "Allow access to other users (not Windows).")
 	flags.BoolVarP(flagSet, &Opt.DefaultPermissions, "default-permissions", "", Opt.DefaultPermissions, "Makes kernel enforce access control based on the file mode.")
 	flags.BoolVarP(flagSet, &Opt.WritebackCache, "write-back-cache", "", Opt.WritebackCache, "Makes kernel buffer writes before sending them to rclone. Without this, writethrough caching is used.")
 	flags.FVarP(flagSet, &Opt.MaxReadAhead, "max-read-ahead", "", "The number of bytes that can be prefetched for sequential reads.")
@@ -101,7 +101,7 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	}
 }
 
-// Check is folder is empty
+// Check if folder is empty
 func checkMountEmpty(mountpoint string) error {
 	fp, fpErr := os.Open(mountpoint)
 
@@ -162,7 +162,7 @@ FUSE.
 First set up your remote using ` + "`rclone config`" + `.  Check it works with ` + "`rclone ls`" + ` etc.
 
 You can either run mount in foreground mode or background (daemon) mode. Mount runs in
-foreground mode by default, use the --daemon flag to specify background mode mode.
+foreground mode by default, use the --daemon flag to specify background mode.
 Background mode is only supported on Linux and OSX, you can only run mount in
 foreground mode on Windows.
 
@@ -191,6 +191,9 @@ Stopping the mount manually:
     fusermount -u /path/to/local/mount
     # OS X
     umount /path/to/local/mount
+
+**Note**: As of ` + "`rclone` 1.52.2, `rclone mount`" + ` now requires Go version 1.13
+or newer on some platforms depending on the underlying FUSE library in use.
 
 ### Installing on Windows
 
@@ -257,7 +260,7 @@ applications won't work with their files on an rclone mount without
 "--vfs-cache-mode writes" or "--vfs-cache-mode full".  See the [File
 Caching](#file-caching) section for more info.
 
-The bucket based remotes (eg Swift, S3, Google Compute Storage, B2,
+The bucket based remotes (e.g. Swift, S3, Google Compute Storage, B2,
 Hubic) do not support the concept of empty directories, so empty
 directories will have a tendency to disappear once they fall out of
 the directory cache.
@@ -276,7 +279,7 @@ for solutions to make ` + commandName + ` more reliable.
 ### Attribute caching
 
 You can use the flag --attr-timeout to set the time the kernel caches
-the attributes (size, modification time etc) for directory entries.
+the attributes (size, modification time, etc.) for directory entries.
 
 The default is "1s" which caches files just long enough to avoid
 too many callbacks to rclone from the kernel.
@@ -333,9 +336,6 @@ With --vfs-read-chunk-size 100M and --vfs-read-chunk-size-limit 0 the following
 parts will be downloaded: 0-100M, 100M-200M, 200M-300M, 300M-400M and so on.
 When --vfs-read-chunk-size-limit 500M is specified, the result would be
 0-100M, 100M-300M, 300M-700M, 700M-1200M, 1200M-1700M and so on.
-
-Chunked reading will only work with --vfs-cache-mode < full, as the file will always
-be copied to the vfs cache before opening with --vfs-cache-mode full.
 ` + vfs.Help,
 		Run: func(command *cobra.Command, args []string) {
 			cmd.CheckArgs(2, 2, command, args)
@@ -359,15 +359,24 @@ be copied to the vfs cache before opening with --vfs-cache-mode full.
 				defer cmd.StartStats()()
 			}
 
-			// Skip checkMountEmpty if --allow-non-empty flag is used or if
-			// the Operating System is Windows
-			if !opt.AllowNonEmpty && runtime.GOOS != "windows" {
+			// Inform about ignored flags on Windows,
+			// and if not on Windows and not --allow-non-empty flag is used
+			// verify that mountpoint is empty.
+			if runtime.GOOS == "windows" {
+				if opt.AllowNonEmpty {
+					fs.Logf(nil, "--allow-non-empty flag does nothing on Windows")
+				}
+				if opt.AllowRoot {
+					fs.Logf(nil, "--allow-root flag does nothing on Windows")
+				}
+				if opt.AllowOther {
+					fs.Logf(nil, "--allow-other flag does nothing on Windows")
+				}
+			} else if !opt.AllowNonEmpty {
 				err := checkMountEmpty(mountpoint)
 				if err != nil {
 					log.Fatalf("Fatal error: %v", err)
 				}
-			} else if opt.AllowNonEmpty && runtime.GOOS == "windows" {
-				fs.Logf(nil, "--allow-non-empty flag does nothing on Windows")
 			}
 
 			// Work out the volume name, removing special
@@ -448,13 +457,13 @@ func Mount(VFS *vfs.VFS, mountpoint string, mount MountFn, opt *Options) error {
 
 	// Unmount on exit
 	fnHandle := atexit.Register(func() {
+		_ = sysdnotify.Stopping()
 		_ = unmount()
-		_ = sdnotify.Stopping()
 	})
 	defer atexit.Unregister(fnHandle)
 
 	// Notify systemd
-	if err := sdnotify.Ready(); err != nil && err != sdnotify.ErrSdNotifyNoSocket {
+	if err := sysdnotify.Ready(); err != nil {
 		return errors.Wrap(err, "failed to notify systemd")
 	}
 
@@ -479,8 +488,8 @@ waitloop:
 		}
 	}
 
+	_ = sysdnotify.Stopping()
 	_ = unmount()
-	_ = sdnotify.Stopping()
 
 	if err != nil {
 		return errors.Wrap(err, "failed to umount FUSE fs")

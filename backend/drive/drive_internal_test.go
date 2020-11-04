@@ -7,16 +7,21 @@ import (
 	"io"
 	"io/ioutil"
 	"mime"
+	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	_ "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/hash"
 	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fstest"
 	"github.com/rclone/rclone/fstest/fstests"
+	"github.com/rclone/rclone/lib/random"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/drive/v3"
@@ -269,14 +274,15 @@ func (f *Fs) InternalTestDocumentLink(t *testing.T) {
 	}
 }
 
+const (
+	// from fstest/fstests/fstests.go
+	existingDir    = "hello? sausage"
+	existingFile   = `hello? sausage/êé/Hello, 世界/ " ' @ < > & ? + ≠/z.txt`
+	existingSubDir = "êé"
+)
+
 // TestIntegration/FsMkdir/FsPutFiles/Internal/Shortcuts
 func (f *Fs) InternalTestShortcuts(t *testing.T) {
-	const (
-		// from fstest/fstests/fstests.go
-		existingDir    = "hello? sausage"
-		existingFile   = `hello? sausage/êé/Hello, 世界/ " ' @ < > & ? + ≠/z.txt`
-		existingSubDir = "êé"
-	)
 	ctx := context.Background()
 	srcObj, err := f.NewObject(ctx, existingFile)
 	require.NoError(t, err)
@@ -361,6 +367,99 @@ func (f *Fs) InternalTestShortcuts(t *testing.T) {
 	})
 }
 
+// TestIntegration/FsMkdir/FsPutFiles/Internal/UnTrash
+func (f *Fs) InternalTestUnTrash(t *testing.T) {
+	ctx := context.Background()
+
+	// Make some objects, one in a subdir
+	contents := random.String(100)
+	file1 := fstest.NewItem("trashDir/toBeTrashed", contents, time.Now())
+	_, obj1 := fstests.PutTestContents(ctx, t, f, &file1, contents, false)
+	file2 := fstest.NewItem("trashDir/subdir/toBeTrashed", contents, time.Now())
+	_, _ = fstests.PutTestContents(ctx, t, f, &file2, contents, false)
+
+	// Check objects
+	checkObjects := func() {
+		fstest.CheckListingWithRoot(t, f, "trashDir", []fstest.Item{
+			file1,
+			file2,
+		}, []string{
+			"trashDir/subdir",
+		}, f.Precision())
+	}
+	checkObjects()
+
+	// Make sure we are using the trash
+	require.Equal(t, true, f.opt.UseTrash)
+
+	// Remove the object and the dir
+	require.NoError(t, obj1.Remove(ctx))
+	require.NoError(t, f.Purge(ctx, "trashDir/subdir"))
+
+	// Check objects gone
+	fstest.CheckListingWithRoot(t, f, "trashDir", []fstest.Item{}, []string{}, f.Precision())
+
+	// Restore the object and directory
+	r, err := f.unTrashDir(ctx, "trashDir", true)
+	require.NoError(t, err)
+	assert.Equal(t, unTrashResult{Errors: 0, Untrashed: 2}, r)
+
+	// Check objects restored
+	checkObjects()
+
+	// Remove the test dir
+	require.NoError(t, f.Purge(ctx, "trashDir"))
+}
+
+// TestIntegration/FsMkdir/FsPutFiles/Internal/CopyID
+func (f *Fs) InternalTestCopyID(t *testing.T) {
+	ctx := context.Background()
+	obj, err := f.NewObject(ctx, existingFile)
+	require.NoError(t, err)
+	o := obj.(*Object)
+
+	dir, err := ioutil.TempDir("", "rclone-drive-copyid-test")
+	require.NoError(t, err)
+	defer func() {
+		_ = os.RemoveAll(dir)
+	}()
+
+	checkFile := func(name string) {
+		filePath := filepath.Join(dir, name)
+		fi, err := os.Stat(filePath)
+		require.NoError(t, err)
+		assert.Equal(t, int64(100), fi.Size())
+		err = os.Remove(filePath)
+		require.NoError(t, err)
+	}
+
+	t.Run("BadID", func(t *testing.T) {
+		err = f.copyID(ctx, "ID-NOT-FOUND", dir+"/")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "couldn't find id")
+	})
+
+	t.Run("Directory", func(t *testing.T) {
+		rootID, err := f.dirCache.RootID(ctx, false)
+		require.NoError(t, err)
+		err = f.copyID(ctx, rootID, dir+"/")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't copy directory")
+	})
+
+	t.Run("WithoutDestName", func(t *testing.T) {
+		err = f.copyID(ctx, o.id, dir+"/")
+		require.NoError(t, err)
+		checkFile(path.Base(existingFile))
+	})
+
+	t.Run("WithDestName", func(t *testing.T) {
+		err = f.copyID(ctx, o.id, dir+"/potato.txt")
+		require.NoError(t, err)
+		checkFile("potato.txt")
+	})
+}
+
 func (f *Fs) InternalTest(t *testing.T) {
 	// These tests all depend on each other so run them as nested tests
 	t.Run("DocumentImport", func(t *testing.T) {
@@ -376,6 +475,8 @@ func (f *Fs) InternalTest(t *testing.T) {
 		})
 	})
 	t.Run("Shortcuts", f.InternalTestShortcuts)
+	t.Run("UnTrash", f.InternalTestUnTrash)
+	t.Run("CopyID", f.InternalTestCopyID)
 }
 
 var _ fstests.InternalTester = (*Fs)(nil)

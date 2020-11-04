@@ -218,7 +218,7 @@ background.  The `job/status` call can be used to get information of
 the background job.  The job can be queried for up to 1 minute after
 it has finished.
 
-It is recommended that potentially long running jobs, eg `sync/sync`,
+It is recommended that potentially long running jobs, e.g. `sync/sync`,
 `sync/copy`, `sync/move`, `operations/purge` are run with the `_async`
 flag to avoid any potential problems with the HTTP request and
 response timing out.
@@ -298,7 +298,7 @@ $ rclone rc --json '{ "group": "job/1" }' core/stats
 This takes the following parameters
 
 - command - a string with the command name
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 - arg - a list of arguments for the backend command
 - opt - a map of string to string of options
 
@@ -371,7 +371,7 @@ Some valid examples are:
 "0:10" -> the first ten chunks
 
 Any parameter with a key that starts with "file" can be used to
-specify files to fetch, eg
+specify files to fetch, e.g.
 
     rclone rc cache/fetch chunks=0 file=hello file2=home/goodbye
 
@@ -504,6 +504,43 @@ except only one bandwidth may be specified.
 In either case "rate" is returned as a human readable string, and
 "bytesPerSecond" is returned as a number.
 
+### core/command: Run a rclone terminal command over rc. {#core-command}
+
+This takes the following parameters
+
+- command - a string with the command name
+- arg - a list of arguments for the backend command
+- opt - a map of string to string of options
+
+Returns
+
+- result - result from the backend command
+- error	 - set if rclone exits with an error code
+- returnType - one of ("COMBINED_OUTPUT", "STREAM", "STREAM_ONLY_STDOUT". "STREAM_ONLY_STDERR")
+
+For example
+
+    rclone rc core/command command=ls -a mydrive:/ -o max-depth=1
+	rclone rc core/command -a ls -a mydrive:/ -o max-depth=1
+
+Returns
+
+```
+{
+	"error": false,
+	"result": "<Raw command line output>"
+}
+
+OR 
+{
+	"error": true,
+	"result": "<Raw command line output>"
+}
+
+```
+
+**Authentication is required for this call.**
+
 ### core/gc: Runs a garbage collection. {#core-gc}
 
 This tells the go runtime to do a garbage collection run.  It isn't
@@ -582,6 +619,7 @@ Returns the following values:
 	"transfers": number of transferred files,
 	"deletes" : number of deleted files,
 	"renames" : number of renamed files,
+	"transferTime" : total time spent on running jobs,
 	"elapsedTime": time in seconds since the start of the process,
 	"lastError": last occurred error,
 	"transferring": an array of currently active file transfers:
@@ -591,8 +629,8 @@ Returns the following values:
 				"eta": estimated time in seconds until file transfer completion
 				"name": name of the file,
 				"percentage": progress of the file transfer in percent,
-				"speed": speed in bytes/sec,
-				"speedAvg": speed in bytes/sec as an exponentially weighted moving average,
+				"speed": average speed over the whole transfer in bytes/sec,
+				"speedAvg": current speed in bytes/sec as an exponentially weighted moving average,
 				"size": size of the file in bytes
 			}
 		],
@@ -657,10 +695,10 @@ Returns the following values:
 
 This shows the current version of go and the go runtime
 
-- version - rclone version, eg "v1.44"
-- decomposed - version number as [major, minor, patch, subpatch]
-    - note patch and subpatch will be 999 for a git compiled version
+- version - rclone version, e.g. "v1.53.0"
+- decomposed - version number as [major, minor, patch]
 - isGit - boolean - true if this was compiled from the git version
+- isBeta - boolean - true if this is a beta version
 - os - OS in use as according to Go
 - arch - cpu architecture in use according to Go
 - goVersion - version of Go runtime in use
@@ -721,11 +759,11 @@ Results
 
 - finished - boolean
 - duration - time in seconds that the job ran for
-- endTime - time the job finished (eg "2018-10-26T18:50:20.528746884+01:00")
+- endTime - time the job finished (e.g. "2018-10-26T18:50:20.528746884+01:00")
 - error - error from the job or empty string for no error
 - finished - boolean whether the job has finished or not
 - id - as passed in above
-- startTime - time the job started (eg "2018-10-26T18:50:20.528336039+01:00")
+- startTime - time the job started (e.g. "2018-10-26T18:50:20.528336039+01:00")
 - success - boolean - true for success false otherwise
 - output - output of the job as would have been returned if called synchronously
 - progress - output of the progress related to the underlying job
@@ -735,6 +773,20 @@ Results
 Parameters
 
 - jobid - id of the job (integer)
+
+### mount/listmounts: Show current mount points {#mount-listmounts}
+
+This shows currently mounted points, which can be used for performing an unmount
+
+This takes no parameters and returns
+
+- mountPoints: list of current mount points
+
+Eg
+
+    rclone rc mount/listmounts
+
+**Authentication is required for this call.**
 
 ### mount/mount: Create a new mount point {#mount-mount}
 
@@ -748,11 +800,19 @@ This takes the following parameters
 - fs - a remote path to be mounted (required)
 - mountPoint: valid path on the local machine (required)
 - mountType: One of the values (mount, cmount, mount2) specifies the mount implementation to use
+- mountOpt: a JSON object with Mount options in.
+- vfsOpt: a JSON object with VFS options in.
 
 Eg
 
     rclone rc mount/mount fs=mydrive: mountPoint=/home/<user>/mountPoint
     rclone rc mount/mount fs=mydrive: mountPoint=/home/<user>/mountPoint mountType=mount
+    rclone rc mount/mount fs=TestDrive: mountPoint=/mnt/tmp vfsOpt='{"CacheMode": 2}' mountOpt='{"AllowOther": true}'
+
+The vfsOpt are as described in options/get and can be seen in the the
+"vfs" section when running and the mountOpt can be seen in the "mount" section.
+
+    rclone rc options/get
 
 **Authentication is required for this call.**
 
@@ -773,7 +833,7 @@ Eg
 
 **Authentication is required for this call.**
 
-### mount/unmount: Unmount all active mounts {#mount-unmount}
+### mount/unmount: Unmount selected active mount {#mount-unmount}
 
 rclone allows Linux, FreeBSD, macOS and Windows to
 mount any of Rclone's cloud storage systems as a file system with
@@ -789,11 +849,23 @@ Eg
 
 **Authentication is required for this call.**
 
+### mount/unmountall: Show current mount points {#mount-unmountall}
+
+This shows currently mounted points, which can be used for performing an unmount
+
+This takes no parameters and returns error if unmount does not succeed.
+
+Eg
+
+    rclone rc mount/unmountall
+
+**Authentication is required for this call.**
+
 ### operations/about: Return the space used on the remote {#operations-about}
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 
 The result is as returned from rclone about --json
 
@@ -805,7 +877,7 @@ See the [about command](/commands/rclone_size/) command for more information on 
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 
 See the [cleanup command](/commands/rclone_cleanup/) command for more information on the above.
 
@@ -815,10 +887,10 @@ See the [cleanup command](/commands/rclone_cleanup/) command for more informatio
 
 This takes the following parameters
 
-- srcFs - a remote name string eg "drive:" for the source
-- srcRemote - a path within that remote eg "file.txt" for the source
-- dstFs - a remote name string eg "drive2:" for the destination
-- dstRemote - a path within that remote eg "file2.txt" for the destination
+- srcFs - a remote name string e.g. "drive:" for the source
+- srcRemote - a path within that remote e.g. "file.txt" for the source
+- dstFs - a remote name string e.g. "drive2:" for the destination
+- dstRemote - a path within that remote e.g. "file2.txt" for the destination
 
 **Authentication is required for this call.**
 
@@ -826,8 +898,8 @@ This takes the following parameters
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 - url - string, URL to read from
  - autoFilename - boolean, set to true to retrieve destination file name from url
 See the [copyurl command](/commands/rclone_copyurl/) command for more information on the above.
@@ -838,7 +910,7 @@ See the [copyurl command](/commands/rclone_copyurl/) command for more informatio
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 
 See the [delete command](/commands/rclone_delete/) command for more information on the above.
 
@@ -848,8 +920,8 @@ See the [delete command](/commands/rclone_delete/) command for more information 
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 
 See the [deletefile command](/commands/rclone_deletefile/) command for more information on the above.
 
@@ -859,7 +931,7 @@ See the [deletefile command](/commands/rclone_deletefile/) command for more info
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
+- fs - a remote name string e.g. "drive:"
 
 This returns info about the remote passed in;
 
@@ -916,8 +988,8 @@ This command does not have a command line equivalent so use this instead:
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 - opt - a dictionary of options to control the listing (optional)
     - recurse - If set recurse directories
     - noModTime - If set return modification time
@@ -938,8 +1010,8 @@ See the [lsjson command](/commands/rclone_lsjson/) for more information on the a
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 
 See the [mkdir command](/commands/rclone_mkdir/) command for more information on the above.
 
@@ -949,10 +1021,10 @@ See the [mkdir command](/commands/rclone_mkdir/) command for more information on
 
 This takes the following parameters
 
-- srcFs - a remote name string eg "drive:" for the source
-- srcRemote - a path within that remote eg "file.txt" for the source
-- dstFs - a remote name string eg "drive2:" for the destination
-- dstRemote - a path within that remote eg "file2.txt" for the destination
+- srcFs - a remote name string e.g. "drive:" for the source
+- srcRemote - a path within that remote e.g. "file.txt" for the source
+- dstFs - a remote name string e.g. "drive2:" for the destination
+- dstRemote - a path within that remote e.g. "file2.txt" for the destination
 
 **Authentication is required for this call.**
 
@@ -960,8 +1032,10 @@ This takes the following parameters
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
+- unlink - boolean - if set removes the link rather than adding it (optional)
+- expire - string - the expiry time of the link e.g. "1d" (optional)
 
 Returns
 
@@ -975,8 +1049,8 @@ See the [link command](/commands/rclone_link/) command for more information on t
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 
 See the [purge command](/commands/rclone_purge/) command for more information on the above.
 
@@ -986,8 +1060,8 @@ See the [purge command](/commands/rclone_purge/) command for more information on
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 
 See the [rmdir command](/commands/rclone_rmdir/) command for more information on the above.
 
@@ -997,8 +1071,8 @@ See the [rmdir command](/commands/rclone_rmdir/) command for more information on
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:"
-- remote - a path within that remote eg "dir"
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
 - leaveRoot - boolean, set to true not to delete the root
 
 See the [rmdirs command](/commands/rclone_rmdirs/) command for more information on the above.
@@ -1009,7 +1083,7 @@ See the [rmdirs command](/commands/rclone_rmdirs/) command for more information 
 
 This takes the following parameters
 
-- fs - a remote name string eg "drive:path/to/dir"
+- fs - a remote name string e.g. "drive:path/to/dir"
 
 Returns
 
@@ -1017,6 +1091,17 @@ Returns
 - bytes - number of bytes in those files
 
 See the [size command](/commands/rclone_size/) command for more information on the above.
+
+**Authentication is required for this call.**
+
+### operations/uploadfile: Upload file using multiform/form-data {#operations-uploadfile}
+
+This takes the following parameters
+
+- fs - a remote name string e.g. "drive:"
+- remote - a path within that remote e.g. "dir"
+- each part in body represents a file to be uploaded
+See the [uploadfile command](/commands/rclone_uploadfile/) command for more information on the above.
 
 **Authentication is required for this call.**
 
@@ -1060,6 +1145,97 @@ And this sets NOTICE level logs (normal without -v)
 
     rclone rc options/set --json '{"main": {"LogLevel": 6}}'
 
+### pluginsctl/addPlugin: Add a plugin using url {#pluginsctl-addPlugin}
+
+used for adding a plugin to the webgui
+
+This takes the following parameters
+
+- url: http url of the github repo where the plugin is hosted (http://github.com/rclone/rclone-webui-react)
+
+Eg
+
+   rclone rc pluginsctl/addPlugin
+
+**Authentication is required for this call.**
+
+### pluginsctl/getPluginsForType: Get plugins with type criteria {#pluginsctl-getPluginsForType}
+
+This shows all possible plugins by a mime type
+
+This takes the following parameters
+
+- type: supported mime type by a loaded plugin e.g. (video/mp4, audio/mp3)
+- pluginType: filter plugins based on their type e.g. (DASHBOARD, FILE_HANDLER, TERMINAL) 
+
+and returns
+
+- loadedPlugins: list of current production plugins
+- testPlugins: list of temporarily loaded development plugins, usually running on a different server.
+
+Eg
+
+   rclone rc pluginsctl/getPluginsForType type=video/mp4
+
+**Authentication is required for this call.**
+
+### pluginsctl/listPlugins: Get the list of currently loaded plugins {#pluginsctl-listPlugins}
+
+This allows you to get the currently enabled plugins and their details.
+
+This takes no parameters and returns
+
+- loadedPlugins: list of current production plugins
+- testPlugins: list of temporarily loaded development plugins, usually running on a different server.
+
+Eg
+
+   rclone rc pluginsctl/listPlugins
+
+**Authentication is required for this call.**
+
+### pluginsctl/listTestPlugins: Show currently loaded test plugins {#pluginsctl-listTestPlugins}
+
+allows listing of test plugins with the rclone.test set to true in package.json of the plugin
+
+This takes no parameters and returns
+
+- loadedTestPlugins: list of currently available test plugins
+
+Eg
+
+    rclone rc pluginsctl/listTestPlugins
+
+**Authentication is required for this call.**
+
+### pluginsctl/removePlugin: Remove a loaded plugin {#pluginsctl-removePlugin}
+
+This allows you to remove a plugin using it's name
+
+This takes parameters
+
+- name: name of the plugin in the format `author`/`plugin_name`
+
+Eg
+
+   rclone rc pluginsctl/removePlugin name=rclone/video-plugin
+
+**Authentication is required for this call.**
+
+### pluginsctl/removeTestPlugin: Remove  a test plugin {#pluginsctl-removeTestPlugin}
+
+This allows you to remove a plugin using it's name
+
+This takes the following parameters
+
+- name: name of the plugin in the format `author`/`plugin_name`
+
+Eg
+
+    rclone rc pluginsctl/removeTestPlugin name=rclone/rclone-webui-react
+
+**Authentication is required for this call.**
+
 ### rc/error: This returns an error {#rc-error}
 
 This returns an error with the input as part of its error string.
@@ -1088,8 +1264,8 @@ check that parameter passing is working properly.
 
 This takes the following parameters
 
-- srcFs - a remote name string eg "drive:src" for the source
-- dstFs - a remote name string eg "drive:dst" for the destination
+- srcFs - a remote name string e.g. "drive:src" for the source
+- dstFs - a remote name string e.g. "drive:dst" for the destination
 
 
 See the [copy command](/commands/rclone_copy/) command for more information on the above.
@@ -1100,8 +1276,8 @@ See the [copy command](/commands/rclone_copy/) command for more information on t
 
 This takes the following parameters
 
-- srcFs - a remote name string eg "drive:src" for the source
-- dstFs - a remote name string eg "drive:dst" for the destination
+- srcFs - a remote name string e.g. "drive:src" for the source
+- dstFs - a remote name string e.g. "drive:dst" for the destination
 - deleteEmptySrcDirs - delete empty src directories if set
 
 
@@ -1113,8 +1289,8 @@ See the [move command](/commands/rclone_move/) command for more information on t
 
 This takes the following parameters
 
-- srcFs - a remote name string eg "drive:src" for the source
-- dstFs - a remote name string eg "drive:dst" for the destination
+- srcFs - a remote name string e.g. "drive:src" for the source
+- dstFs - a remote name string e.g. "drive:dst" for the destination
 
 
 See the [sync command](/commands/rclone_sync/) command for more information on the above.
@@ -1133,9 +1309,22 @@ directory cache.
 
 Otherwise pass files or dirs in as file=path or dir=path.  Any
 parameter key starting with file will forget that file and any
-starting with dir will forget that dir, eg
+starting with dir will forget that dir, e.g.
 
     rclone rc vfs/forget file=hello file2=goodbye dir=home/junk
+ 
+This command takes an "fs" parameter. If this parameter is not
+supplied and if there is only one VFS in use then that VFS will be
+used. If there is more than one VFS in use then the "fs" parameter
+must be supplied.
+
+### vfs/list: List active VFSes. {#vfs-list}
+
+This lists the active VFSes.
+
+It returns a list under the key "vfses" where the values are the VFS
+names that could be passed to the other VFS commands in the "fs"
+parameter.
 
 ### vfs/poll-interval: Get the status or update the value of the poll-interval option. {#vfs-poll-interval}
 
@@ -1158,6 +1347,11 @@ not reached.
 If poll-interval is updated or disabled temporarily, some changes
 might not get picked up by the polling function, depending on the
 used remote.
+ 
+This command takes an "fs" parameter. If this parameter is not
+supplied and if there is only one VFS in use then that VFS will be
+used. If there is more than one VFS in use then the "fs" parameter
+must be supplied.
 
 ### vfs/refresh: Refresh the directory cache. {#vfs-refresh}
 
@@ -1169,12 +1363,17 @@ If no paths are passed in then it will refresh the root directory.
     rclone rc vfs/refresh
 
 Otherwise pass directories in as dir=path. Any parameter key
-starting with dir will refresh that directory, eg
+starting with dir will refresh that directory, e.g.
 
     rclone rc vfs/refresh dir=home/junk dir2=data/misc
 
 If the parameter recursive=true is given the whole directory tree
 will get refreshed. This refresh will use --fast-list if enabled.
+ 
+This command takes an "fs" parameter. If this parameter is not
+supplied and if there is only one VFS in use then that VFS will be
+used. If there is more than one VFS in use then the "fs" parameter
+must be supplied.
 
 {{< rem autogenerated stop >}}
 
@@ -1197,9 +1396,9 @@ formatted to be reasonably human readable.
 
 ### Error returns
 
-If an error occurs then there will be an HTTP error status (eg 500)
+If an error occurs then there will be an HTTP error status (e.g. 500)
 and the body of the response will contain a JSON encoded error object,
-eg
+e.g.
 
 ```
 {

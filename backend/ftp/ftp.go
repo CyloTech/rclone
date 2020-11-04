@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"io"
 	"net/textproto"
-	"os"
 	"path"
 	"runtime"
 	"strings"
@@ -22,8 +21,13 @@ import (
 	"github.com/rclone/rclone/fs/config/obscure"
 	"github.com/rclone/rclone/fs/hash"
 	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/env"
 	"github.com/rclone/rclone/lib/pacer"
 	"github.com/rclone/rclone/lib/readers"
+)
+
+var (
+	currentUser = env.CurrentUser()
 )
 
 // Register with Fs
@@ -42,7 +46,7 @@ func init() {
 			}},
 		}, {
 			Name: "user",
-			Help: "FTP username, leave blank for current username, " + os.Getenv("USER"),
+			Help: "FTP username, leave blank for current username, " + currentUser,
 		}, {
 			Name: "port",
 			Help: "FTP port, leave blank to use default (21)",
@@ -53,16 +57,16 @@ func init() {
 			Required:   true,
 		}, {
 			Name: "tls",
-			Help: `Use FTPS over TLS (Implicit)
-When using implicit FTP over TLS the client will connect using TLS
-right from the start, which in turn breaks the compatibility with
+			Help: `Use Implicit FTPS (FTP over TLS)
+When using implicit FTP over TLS the client connects using TLS
+right from the start which breaks compatibility with
 non-TLS-aware servers. This is usually served over port 990 rather
 than port 21. Cannot be used in combination with explicit FTP.`,
 			Default: false,
 		}, {
 			Name: "explicit_tls",
-			Help: `Use FTP over TLS (Explicit)
-When using explicit FTP over TLS the client explicitly request
+			Help: `Use Explicit FTPS (FTP over TLS)
+When using explicit FTP over TLS the client explicitly requests
 security from the server in order to upgrade a plain text connection
 to an encrypted one. Cannot be used in combination with implicit FTP.`,
 			Default: false,
@@ -311,7 +315,7 @@ func NewFs(name, root string, m configmap.Mapper) (ff fs.Fs, err error) {
 	}
 	user := opt.User
 	if user == "" {
-		user = os.Getenv("USER")
+		user = currentUser
 	}
 	port := opt.Port
 	if port == "" {
@@ -725,7 +729,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //

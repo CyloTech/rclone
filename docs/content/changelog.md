@@ -5,6 +5,293 @@ description: "Rclone Changelog"
 
 # Changelog
 
+## v1.53.2 - 2020-10-26
+
+[See commits](https://github.com/rclone/rclone/compare/v1.53.1...v1.53.2)
+
+* Bug Fixes
+    * acounting
+        * Fix incorrect speed and transferTime in core/stats (Nick Craig-Wood)
+        * Stabilize display order of transfers on Windows (Nick Craig-Wood)
+    * operations
+        * Fix use of --suffix without --backup-dir (Nick Craig-Wood)
+        * Fix spurious "--checksum is in use but the source and destination have no hashes in common" (Nick Craig-Wood)
+    * build
+        * Work around GitHub actions brew problem (Nick Craig-Wood)
+        * Stop using set-env and set-path in the GitHub actions (Nick Craig-Wood)
+* Mount
+    * mount2: Fix the swapped UID / GID values (Russell Cattelan)
+* VFS
+    * Detect and recover from a file being removed externally from the cache (Nick Craig-Wood)
+    * Fix a deadlock vulnerability in downloaders.Close (Leo Luan)
+    * Fix a race condition in retryFailedResets (Leo Luan)
+    * Fix missed concurrency control between some item operations and reset (Leo Luan)
+    * Add exponential backoff during ENOSPC retries (Leo Luan)
+    * Add a missed update of used cache space (Leo Luan)
+    * Fix --no-modtime to not attempt to set modtimes (as documented) (Nick Craig-Wood)
+* Local
+    * Fix sizes and syncing with --links option on Windows (Nick Craig-Wood)
+* Chunker
+    * Disable ListR to fix missing files on GDrive (workaround) (Ivan Andreev)
+    * Fix upload over crypt (Ivan Andreev)
+* Fichier
+    * Increase maximum file size from 100GB to 300GB (gyutw)
+* Jottacloud
+    * Remove clientSecret from config when upgrading to token based authentication (buengese)
+    * Avoid double url escaping of device/mountpoint (albertony)
+    * Remove DirMove workaround as it's not required anymore - also (buengese)
+* Mailru
+    * Fix uploads after recent changes on server (Ivan Andreev)
+    * Fix range requests after june changes on server (Ivan Andreev)
+    * Fix invalid timestamp on corrupted files (fixes) (Ivan Andreev)
+* Onedrive
+    * Fix disk usage for sharepoint (Nick Craig-Wood)
+* S3
+    * Add missing regions for AWS (Anagh Kumar Baranwal)
+* Seafile
+    * Fix accessing libraries > 2GB on 32 bit systems (Muffin King)
+* SFTP
+    * Always convert the checksum to lower case (buengese)
+* Union
+    * Create root directories if none exist (Nick Craig-Wood)
+
+## v1.53.1 - 2020-09-13
+
+[See commits](https://github.com/rclone/rclone/compare/v1.53.0...v1.53.1)
+
+* Bug Fixes
+    * accounting: Remove new line from end of --stats-one-line display (Nick Craig-Wood)
+    * check
+        * Add back missing --download flag (Nick Craig-Wood)
+        * Fix docs (Nick Craig-Wood)
+    * docs
+        * Note --log-file does append (Nick Craig-Wood)
+        * Add full stops for consistency in rclone --help (edwardxml)
+        * Add Tencent COS to s3 provider list (wjielai)
+        * Updated mount command to reflect that it requires Go 1.13 or newer (Evan Harris)
+        * jottacloud: Mention that uploads from local disk will not need to cache files to disk for md5 calculation (albertony)
+        * Fix formatting of rc docs page (Nick Craig-Wood)
+    * build
+        * Include vendor tar ball in release and fix startdev (Nick Craig-Wood)
+        * Fix "Illegal instruction" error for ARMv6 builds (Nick Craig-Wood)
+        * Fix architecture name in ARMv7 build (Nick Craig-Wood)
+* VFS
+    * Fix spurious error "vfs cache: failed to _ensure cache EOF" (Nick Craig-Wood)
+    * Log an ERROR if we fail to set the file to be sparse (Nick Craig-Wood)
+* Local
+    * Log an ERROR if we fail to set the file to be sparse (Nick Craig-Wood)
+* Drive
+    * Re-adds special oauth help text (Tim Gallant)
+* Opendrive
+    * Do not retry 400 errors (Evan Harris)
+
+## v1.53.0 - 2020-09-02
+
+[See commits](https://github.com/rclone/rclone/compare/v1.52.0...v1.53.0)
+
+* New Features
+    * The [VFS layer](/commands/rclone_mount/#vfs-virtual-file-system) was heavily reworked for this release - see below for more details
+    * Interactive mode [-i/--interactive](/docs/#interactive) for destructive operations (fishbullet)
+    * Add [--bwlimit-file](/docs/#bwlimit-file-bandwidth-spec) flag to limit speeds of individual file transfers (Nick Craig-Wood)
+    * Transfers are sorted by start time in the stats and progress output (Max Sum)
+    * Make sure backends expand `~` and environment vars in file names they use (Nick Craig-Wood)
+    * Add [--refresh-times](/docs/#refresh-times) flag to set modtimes on hashless backends (Nick Craig-Wood)
+    * build
+        * Remove vendor directory in favour of Go modules (Nick Craig-Wood)
+        * Build with go1.15.x by default (Nick Craig-Wood)
+        * Drop macOS 386 build as it is no longer supported by go1.15 (Nick Craig-Wood)
+        * Add ARMv7 to the supported builds (Nick Craig-Wood)
+        * Enable `rclone cmount` on macOS (Nick Craig-Wood)
+        * Make rclone build with gccgo (Nick Craig-Wood)
+        * Make rclone build with wasm (Nick Craig-Wood)
+        * Change beta numbering to be semver compatible (Nick Craig-Wood)
+        * Add file properties and icon to Windows executable (albertony)
+        * Add experimental interface for integrating rclone into browsers (Nick Craig-Wood)
+    * lib: Add file name compression (Klaus Post)
+    * rc
+        * Allow installation and use of plugins and test plugins with rclone-webui (Chaitanya Bankanhal)
+        * Add reverse proxy pluginsHandler for serving plugins (Chaitanya Bankanhal)
+        * Add `mount/listmounts` option for listing current mounts (Chaitanya Bankanhal)
+        * Add `operations/uploadfile` to upload a file through rc using encoding multipart/form-data (Chaitanya Bankanhal)
+        * Add `core/command` to execute rclone terminal commands. (Chaitanya Bankanhal)
+    * `rclone check`
+        * Add reporting of filenames for same/missing/changed (Nick Craig-Wood)
+        * Make check command obey `--dry-run`/`-i`/`--interactive` (Nick Craig-Wood)
+        * Make check do `--checkers` files concurrently (Nick Craig-Wood)
+        * Retry downloads if they fail when using the `--download` flag (Nick Craig-Wood)
+        * Make it show stats by default (Nick Craig-Wood)
+    * `rclone obscure`: Allow obscure command to accept password on STDIN (David Ibarra)
+    * `rclone config`
+        * Set RCLONE_CONFIG_DIR for use in config files and subprocesses (Nick Craig-Wood)
+        * Reject remote names starting with a dash. (jtagcat)
+    * `rclone cryptcheck`: Add reporting of filenames for same/missing/changed (Nick Craig-Wood)
+    * `rclone dedupe`: Make it obey the `--size-only` flag for duplicate detection (Nick Craig-Wood)
+    * `rclone link`: Add `--expire` and `--unlink` flags (Roman Kredentser)
+    * `rclone mkdir`: Warn when using mkdir on remotes which can't have empty directories (Nick Craig-Wood)
+    * `rclone rc`: Allow JSON parameters to simplify command line usage (Nick Craig-Wood)
+    * `rclone serve ftp`
+        * Don't compile on < go1.13 after dependency update (Nick Craig-Wood)
+        * Add error message if auth proxy fails (Nick Craig-Wood)
+        * Use refactored goftp.io/server library for binary shrink (Nick Craig-Wood)
+    * `rclone serve restic`: Expose interfaces so that rclone can be used as a library from within restic (Jack)
+    * `rclone sync`: Add `--track-renames-strategy leaf` (Nick Craig-Wood)
+    * `rclone touch`: Add ability to set nanosecond resolution times (Nick Craig-Wood)
+    * `rclone tree`: Remove `-i` shorthand for `--noindent` as it conflicts with `-i`/`--interactive` (Nick Craig-Wood)
+* Bug Fixes
+    * accounting
+        * Fix documentation for `speed`/`speedAvg` (Nick Craig-Wood)
+        * Fix elapsed time not show actual time since beginning (Chaitanya Bankanhal)
+        * Fix deadlock in stats printing (Nick Craig-Wood)
+    * build
+        * Fix file handle leak in GitHub release tool (Garrett Squire)
+    * `rclone check`: Fix successful retries with `--download` counting errors (Nick Craig-Wood)
+    * `rclone dedupe`: Fix logging to be easier to understand (Nick Craig-Wood)
+* Mount
+    * Warn macOS users that mount implementation is changing (Nick Craig-Wood)
+        * to test the new implementation use `rclone cmount` instead of `rclone mount`
+        * this is because the library rclone uses has dropped macOS support
+    * rc interface
+        * Add call for unmount all (Chaitanya Bankanhal)
+        * Make `mount/mount` remote control take vfsOpt option (Nick Craig-Wood)
+        * Add mountOpt to `mount/mount` (Nick Craig-Wood)
+        * Add VFS and Mount options to `mount/listmounts` (Nick Craig-Wood)
+    * Catch panics in cgofuse initialization and turn into error messages (Nick Craig-Wood)
+    * Always supply stat information in Readdir (Nick Craig-Wood)
+    * Add support for reading unknown length files using direct IO (Windows) (Nick Craig-Wood)
+    * Fix On Windows don't add `-o uid/gid=-1` if user supplies `-o uid/gid`. (Nick Craig-Wood)
+    * Fix macOS losing directory contents in cmount (Nick Craig-Wood)
+    * Fix volume name broken in recent refactor (Nick Craig-Wood)
+* VFS
+    * Implement partial reads for `--vfs-cache-mode full` (Nick Craig-Wood)
+    * Add `--vfs-writeback` option to delay writes back to cloud storage (Nick Craig-Wood)
+    * Add `--vfs-read-ahead` parameter for use with `--vfs-cache-mode full` (Nick Craig-Wood)
+    * Restart pending uploads on restart of the cache (Nick Craig-Wood)
+    * Support synchronous cache space recovery upon ENOSPC (Leo Luan)
+    * Allow ReadAt and WriteAt to run concurrently with themselves (Nick Craig-Wood)
+    * Change modtime of file before upload to current (Rob Calistri)
+    * Recommend `--vfs-cache-modes writes` on backends which can't stream (Nick Craig-Wood)
+    * Add an optional `fs` parameter to vfs rc methods (Nick Craig-Wood)
+    * Fix errors when using > 260 char files in the cache in Windows (Nick Craig-Wood)
+    * Fix renaming of items while they are being uploaded (Nick Craig-Wood)
+    * Fix very high load caused by slow directory listings (Nick Craig-Wood)
+    * Fix renamed files not being uploaded with `--vfs-cache-mode minimal` (Nick Craig-Wood)
+    * Fix directory locking caused by slow directory listings (Nick Craig-Wood)
+    * Fix saving from chrome without `--vfs-cache-mode writes` (Nick Craig-Wood)
+* Local
+    * Add `--local-no-updated` to provide a consistent view of changing objects (Nick Craig-Wood)
+    * Add `--local-no-set-modtime` option to prevent modtime changes (tyhuber1)
+    * Fix race conditions updating and reading Object metadata (Nick Craig-Wood)
+* Cache
+    * Make any created backends be cached to fix rc problems (Nick Craig-Wood)
+    * Fix dedupe on caches wrapping drives (Nick Craig-Wood)
+* Crypt
+    * Add `--crypt-server-side-across-configs` flag (Nick Craig-Wood)
+    * Make any created backends be cached to fix rc problems (Nick Craig-Wood)
+* Alias
+    * Make any created backends be cached to fix rc problems (Nick Craig-Wood)
+* Azure Blob
+    * Don't compile on < go1.13 after dependency update (Nick Craig-Wood)
+* B2
+    * Implement server-side copy for files > 5GB (Nick Craig-Wood)
+    * Cancel in progress multipart uploads and copies on rclone exit (Nick Craig-Wood)
+    * Note that b2's encoding now allows \ but rclone's hasn't changed (Nick Craig-Wood)
+    * Fix transfers when using download_url (Nick Craig-Wood)
+* Box
+    * Implement rclone cleanup (buengese)
+    * Cancel in progress multipart uploads and copies on rclone exit (Nick Craig-Wood)
+    * Allow authentication with access token (David)
+* Chunker
+    * Make any created backends be cached to fix rc problems (Nick Craig-Wood)
+* Drive
+    * Add `rclone backend drives` to list shared drives (teamdrives) (Nick Craig-Wood)
+    * Implement `rclone backend untrash` (Nick Craig-Wood)
+    * Work around drive bug which didn't set modtime of copied docs (Nick Craig-Wood)
+    * Added `--drive-starred-only` to only show starred files (Jay McEntire)
+    * Deprecate `--drive-alternate-export` as it is no longer needed (themylogin)
+    * Fix duplication of Google docs on server-side copy (Nick Craig-Wood)
+    * Fix "panic: send on closed channel" when recycling dir entries (Nick Craig-Wood)
+* Dropbox
+    * Add copyright detector info in limitations section in the docs (Alex Guerrero)
+    * Fix `rclone link` by removing expires parameter (Nick Craig-Wood)
+* Fichier
+    * Detect Flood detected: IP Locked error and sleep for 30s (Nick Craig-Wood)
+* FTP
+    * Add explicit TLS support (Heiko Bornholdt)
+    * Add support for `--dump bodies` and `--dump auth` for debugging (Nick Craig-Wood)
+    * Fix interoperation with pure-ftpd (Nick Craig-Wood)
+* Google Cloud Storage
+    * Add support for anonymous access (Kai Lüke)
+* Jottacloud
+    * Bring back legacy authentication for use with whitelabel versions (buengese)
+    * Switch to new api root - also implement a very ugly workaround for the DirMove failures (buengese)
+* Onedrive
+    * Rework cancel of multipart uploads on rclone exit (Nick Craig-Wood)
+    * Implement rclone cleanup (Nick Craig-Wood)
+    * Add `--onedrive-no-versions` flag to remove old versions (Nick Craig-Wood)
+* Pcloud
+    * Implement `rclone link` for public link creation (buengese)
+* Qingstor
+    * Cancel in progress multipart uploads on rclone exit (Nick Craig-Wood)
+* S3
+    * Preserve metadata when doing multipart copy (Nick Craig-Wood)
+    * Cancel in progress multipart uploads and copies on rclone exit (Nick Craig-Wood)
+    * Add `rclone link` for public link sharing (Roman Kredentser)
+    * Add `rclone backend restore` command to restore objects from GLACIER (Nick Craig-Wood)
+    * Add `rclone cleanup` and `rclone backend cleanup` to clean unfinished multipart uploads (Nick Craig-Wood)
+    * Add `rclone backend list-multipart-uploads` to list unfinished multipart uploads (Nick Craig-Wood)
+    * Add `--s3-max-upload-parts` support (Kamil Trzciński)
+    * Add `--s3-no-check-bucket` for minimising rclone transactions and perms (Nick Craig-Wood)
+    * Add `--s3-profile` and `--s3-shared-credentials-file` options (Nick Craig-Wood)
+    * Use regional s3 us-east-1 endpoint (David)
+    * Add Scaleway provider (Vincent Feltz)
+    * Update IBM COS endpoints (Egor Margineanu)
+    * Reduce the default `--s3-copy-cutoff` to < 5GB for Backblaze S3 compatibility (Nick Craig-Wood)
+    * Fix detection of bucket existing (Nick Craig-Wood)
+* SFTP
+    * Use the absolute path instead of the relative path for listing for improved compatibility (Nick Craig-Wood)
+    * Add `--sftp-subsystem` and `--sftp-server-command` options (aus)
+* Swift
+    * Fix dangling large objects breaking the listing (Nick Craig-Wood)
+    * Fix purge not deleting directory markers (Nick Craig-Wood)
+    * Fix update multipart object removing all of its own parts (Nick Craig-Wood)
+    * Fix missing hash from object returned from upload (Nick Craig-Wood)
+* Tardigrade
+    * Upgrade to uplink v1.2.0 (Kaloyan Raev)
+* Union
+    * Fix writing with the all policy (Nick Craig-Wood)
+* WebDAV
+    * Fix directory creation with 4shared (Nick Craig-Wood)
+
+## v1.52.3 - 2020-08-07
+
+[See commits](https://github.com/rclone/rclone/compare/v1.52.2...v1.52.3)
+
+* Bug Fixes
+    * docs
+        * Disable smart typography (e.g. en-dash) in MANUAL.* and man page (Nick Craig-Wood)
+        * Update install.md to reflect minimum Go version (Evan Harris)
+        * Update install from source instructions (Nick Craig-Wood)
+        * make_manual: Support SOURCE_DATE_EPOCH (Morten Linderud)
+    * log: Fix --use-json-log going to stderr not --log-file on Windows (Nick Craig-Wood)
+    * serve dlna: Fix file list on Samsung Series 6+ TVs (Matteo Pietro Dazzi)
+    * sync: Fix deadlock with --track-renames-strategy modtime (Nick Craig-Wood)
+* Cache
+    * Fix moveto/copyto remote:file remote:file2 (Nick Craig-Wood)
+* Drive
+    * Stop using root_folder_id as a cache (Nick Craig-Wood)
+    * Make dangling shortcuts appear in listings (Nick Craig-Wood)
+    * Drop "Disabling ListR" messages down to debug (Nick Craig-Wood)
+    * Workaround and policy for Google Drive API (Dmitry Ustalov)
+* FTP
+    * Add note to docs about home vs root directory selection (Nick Craig-Wood)
+* Onedrive
+    * Fix reverting to Copy when Move would have worked (Nick Craig-Wood)
+    * Avoid comma rendered in URL in onedrive.md (Kevin)
+* Pcloud
+    * Fix oauth on European region "eapi.pcloud.com" (Nick Craig-Wood)
+* S3
+    * Fix bucket Region auto detection when Region unset in config (Nick Craig-Wood)
+
 ## v1.52.2 - 2020-06-24
 
 [See commits](https://github.com/rclone/rclone/compare/v1.52.1...v1.52.2)
@@ -85,8 +372,8 @@ all the docs and Edward Barker for helping re-write the front page.
     * Add `--header` flag to add HTTP headers to every HTTP transaction (Nick Craig-Wood)
     * Add `--check-first` to do all checking before starting transfers (Nick Craig-Wood)
     * Add `--track-renames-strategy` for configurable matching criteria for `--track-renames` (Bernd Schoolmann)
-    * Add `--cutoff-mode` hard,soft,catious (Shing Kit Chan & Franklyn Tackitt)
-    * Filter flags (eg `--files-from -`) can read from stdin (fishbullet)
+    * Add `--cutoff-mode` hard,soft,cautious (Shing Kit Chan & Franklyn Tackitt)
+    * Filter flags (e.g. `--files-from -`) can read from stdin (fishbullet)
     * Add `--error-on-no-transfer` option (Jon Fautley)
     * Implement `--order-by xxx,mixed` for copying some small and some big files (Nick Craig-Wood)
     * Allow `--max-backlog` to be negative meaning as large as possible (Nick Craig-Wood)
@@ -368,7 +655,7 @@ all the docs and Edward Barker for helping re-write the front page.
     * dbhashsum: Stop it returning UNSUPPORTED on dropbox (Nick Craig-Wood)
     * dedupe: Add missing modes to help string (Nick Craig-Wood)
     * operations
-        * Fix dedupe continuing on errors like insufficientFilePermisson (SezalAgrawal)
+        * Fix dedupe continuing on errors like insufficientFilePersimmon (SezalAgrawal)
         * Clear accounting before low level retry (Maciej Zimnoch)
         * Write debug message when hashes could not be checked (Ole Schütt)
         * Move interface assertion to tests to remove pflag dependency (Nick Craig-Wood)
@@ -432,7 +719,7 @@ all the docs and Edward Barker for helping re-write the front page.
 * S3
     * Re-implement multipart upload to fix memory issues (Nick Craig-Wood)
     * Add `--s3-copy-cutoff` for size to switch to multipart copy (Nick Craig-Wood)
-    * Add new region Asia Patific (Hong Kong) (Outvi V)
+    * Add new region Asia Pacific (Hong Kong) (Outvi V)
     * Reduce memory usage streaming files by reducing max stream upload size (Nick Craig-Wood)
     * Add `--s3-list-chunk` option for bucket listing (Thomas Kriechbaumer)
     * Force path style bucket access to off for AWS deprecation (Nick Craig-Wood)
@@ -511,7 +798,7 @@ all the docs and Edward Barker for helping re-write the front page.
         * Free objects after they come out of the transfer pipe to save memory (Nick Craig-Wood)
         * Fix `--files-from without --no-traverse` doing a recursive scan (Nick Craig-Wood)
     * operations
-        * Fix accounting for server side copies (Nick Craig-Wood)
+        * Fix accounting for server-side copies (Nick Craig-Wood)
         * Display 'All duplicates removed' only if dedupe successful (Sezal Agrawal)
         * Display 'Deleted X extra copies' only if dedupe successful (Sezal Agrawal)
     * accounting
@@ -530,7 +817,7 @@ all the docs and Edward Barker for helping re-write the front page.
         * Check config names more carefully and report errors (Nick Craig-Wood)
         * Remove error: can't use `--size-only` and `--ignore-size` together. (Nick Craig-Wood)
     * filter: Prevent mixing options when `--files-from` is in use (Michele Caci)
-    * serve sftp: Fix crash on unsupported operations (eg Readlink) (Nick Craig-Wood)
+    * serve sftp: Fix crash on unsupported operations (e.g. Readlink) (Nick Craig-Wood)
 * Mount
     * Allow files of unknown size to be read properly (Nick Craig-Wood)
     * Skip tests on <= 2 CPUs to avoid lockup (Nick Craig-Wood)
@@ -546,7 +833,7 @@ all the docs and Edward Barker for helping re-write the front page.
 * Azure Blob
     * Disable logging to the Windows event log (Nick Craig-Wood)
 * B2
-    * Remove `unverified:` prefix on sha1 to improve interop (eg with CyberDuck) (Nick Craig-Wood)
+    * Remove `unverified:` prefix on sha1 to improve interop (e.g. with CyberDuck) (Nick Craig-Wood)
 * Box
     * Add options to get access token via JWT auth (David)
 * Drive
@@ -693,7 +980,7 @@ all the docs and Edward Barker for helping re-write the front page.
     * rcat: Fix slowdown on systems with multiple hashes (Nick Craig-Wood)
     * rcd: Fix permissions problems on cache directory with web gui download (Nick Craig-Wood)
 * Mount
-    * Default `--deamon-timout` to 15 minutes on macOS and FreeBSD (Nick Craig-Wood)
+    * Default `--daemon-timout` to 15 minutes on macOS and FreeBSD (Nick Craig-Wood)
     * Update docs to show mounting from root OK for bucket based (Nick Craig-Wood)
     * Remove nonseekable flag from write files (Nick Craig-Wood)
 * VFS
@@ -710,10 +997,10 @@ all the docs and Edward Barker for helping re-write the front page.
     * Make all operations work from the root (Nick Craig-Wood)
 * B2
     * Implement link sharing (yparitcher)
-    * Enable server side copy to copy between buckets (Nick Craig-Wood)
+    * Enable server-side copy to copy between buckets (Nick Craig-Wood)
     * Make all operations work from the root (Nick Craig-Wood)
 * Drive
-    * Fix server side copy of big files (Nick Craig-Wood)
+    * Fix server-side copy of big files (Nick Craig-Wood)
     * Update API for teamdrive use (Nick Craig-Wood)
     * Add error for purge with `--drive-trashed-only` (ginvine)
 * Fichier
@@ -761,7 +1048,7 @@ all the docs and Edward Barker for helping re-write the front page.
         * controlled with `--multi-thread-cutoff` and `--multi-thread-streams`
     * Use rclone.conf from rclone executable directory to enable portable use (albertony)
     * Allow sync of a file and a directory with the same name (forgems)
-        * this is common on bucket based remotes, eg s3, gcs
+        * this is common on bucket based remotes, e.g. s3, gcs
     * Add `--ignore-case-sync` for forced case insensitivity (garry415)
     * Implement `--stats-one-line-date` and `--stats-one-line-date-format` (Peter Berbec)
     * Log an ERROR for all commands which exit with non-zero status (Nick Craig-Wood)
@@ -807,12 +1094,12 @@ all the docs and Edward Barker for helping re-write the front page.
     * Support PublicLink (rclone link) of underlying backend (Nick Craig-Wood)
     * Implement Optional methods SetTier, GetTier (Nick Craig-Wood)
 * B2
-    * Implement server side copy (Nick Craig-Wood)
+    * Implement server-side copy (Nick Craig-Wood)
     * Implement SetModTime (Nick Craig-Wood)
 * Drive
     * Fix move and copy from TeamDrive to GDrive (Fionera)
     * Add notes that cleanup works in the background on drive (Nick Craig-Wood)
-    * Add `--drive-server-side-across-configs` to default back to old server side copy semantics by default (Nick Craig-Wood)
+    * Add `--drive-server-side-across-configs` to default back to old server-side copy semantics by default (Nick Craig-Wood)
     * Add `--drive-size-as-quota` to show storage quota usage for file size (Garry McNulty)
 * FTP
     * Add FTP List timeout (Jeff Quinn)
@@ -851,12 +1138,12 @@ all the docs and Edward Barker for helping re-write the front page.
         * use `--disable ListR` to get old behaviour if required
     * Make `--files-from` traverse the destination unless `--no-traverse` is set (Nick Craig-Wood)
         * this fixes `--files-from` with Google drive and excessive API use in general.
-    * Make server side copy account bytes and obey `--max-transfer` (Nick Craig-Wood)
+    * Make server-side copy account bytes and obey `--max-transfer` (Nick Craig-Wood)
     * Add `--create-empty-src-dirs` flag and default to not creating empty dirs (ishuah)
     * Add client side TLS/SSL flags `--ca-cert`/`--client-cert`/`--client-key` (Nick Craig-Wood)
     * Implement `--suffix-keep-extension` for use with `--suffix` (Nick Craig-Wood)
     * build:
-        * Switch to semvar compliant version tags to be go modules compliant (Nick Craig-Wood)
+        * Switch to semver compliant version tags to be go modules compliant (Nick Craig-Wood)
         * Update to use go1.12.x for the build (Nick Craig-Wood)
     * serve dlna: Add connection manager service description to improve compatibility (Dan Walters)
     * lsf: Add 'e' format to show encrypted names and 'o' for original IDs (Nick Craig-Wood)
@@ -886,11 +1173,11 @@ all the docs and Edward Barker for helping re-write the front page.
     * Ignore malformed `src_last_modified_millis` (Nick Craig-Wood)
 * Drive
     * Add `--skip-checksum-gphotos` to ignore incorrect checksums on Google Photos (Nick Craig-Wood)
-    * Allow server side move/copy between different remotes. (Fionera)
+    * Allow server-side move/copy between different remotes. (Fionera)
     * Add docs on team drives and `--fast-list` eventual consistency (Nestar47)
     * Fix imports of text files (Nick Craig-Wood)
     * Fix range requests on 0 length files (Nick Craig-Wood)
-    * Fix creation of duplicates with server side copy (Nick Craig-Wood)
+    * Fix creation of duplicates with server-side copy (Nick Craig-Wood)
 * Dropbox
     * Retry blank errors to fix long listings (Nick Craig-Wood)
 * FTP
@@ -974,7 +1261,7 @@ all the docs and Edward Barker for helping re-write the front page.
     * Check for maximum length before decrypting filename to fix panic (Garry McNulty)
 * Azure Blob
     * Allow building azureblob backend on *BSD (themylogin)
-    * Use the rclone HTTP client to support `--dump headers`, `--tpslimit` etc (Nick Craig-Wood)
+    * Use the rclone HTTP client to support `--dump headers`, `--tpslimit`, etc. (Nick Craig-Wood)
     * Use the s3 pacer for 0 delay in non error conditions (Nick Craig-Wood)
     * Ignore directory markers (Nick Craig-Wood)
     * Stop Mkdir attempting to create existing containers (Nick Craig-Wood)
@@ -1032,7 +1319,7 @@ all the docs and Edward Barker for helping re-write the front page.
     * Add support for PEM encrypted private keys (Fabian Möller)
     * Add option to force the usage of an ssh-agent (Fabian Möller)
     * Perform environment variable expansion on key-file (Fabian Möller)
-    * Fix rmdir on Windows based servers (eg CrushFTP) (Nick Craig-Wood)
+    * Fix rmdir on Windows based servers (e.g. CrushFTP) (Nick Craig-Wood)
     * Fix rmdir deleting directory contents on some SFTP servers (Nick Craig-Wood)
     * Fix error on dangling symlinks (Nick Craig-Wood)
 * Swift
@@ -1063,7 +1350,7 @@ all the docs and Edward Barker for helping re-write the front page.
         * sensitive operations require authorization or the `--rc-no-auth` flag
         * config/* operations to configure rclone
         * options/* for reading/setting command line flags
-        * operations/* for all low level operations, eg copy file, list directory
+        * operations/* for all low level operations, e.g. copy file, list directory
         * sync/* for sync, copy and move
         * `--rc-files` flag to serve files on the rc http server
           * this is for building web native GUIs for rclone
@@ -1103,7 +1390,7 @@ all the docs and Edward Barker for helping re-write the front page.
     * Fix transfer of files with `+` and `&` in (Nick Craig-Wood)
     * Fix retries of upload chunks (Nick Craig-Wood)
 * S3
-    * Set ACL for server side copies to that provided by the user (Nick Craig-Wood)
+    * Set ACL for server-side copies to that provided by the user (Nick Craig-Wood)
     * Fix role_arn, credential_source, ... (Erik Swanson)
     * Add config info for Wasabi's US-West endpoint (Henry Ptasinski)
 * SFTP
@@ -1146,7 +1433,7 @@ all the docs and Edward Barker for helping re-write the front page.
 * VFS
     * Fix race condition detected by serve ftp tests (Nick Craig-Wood)
     * Add vfs/poll-interval rc command (Fabian Möller)
-    * Enable rename for nearly all remotes using server side Move or Copy (Nick Craig-Wood)
+    * Enable rename for nearly all remotes using server-side Move or Copy (Nick Craig-Wood)
     * Reduce directory cache cleared by poll-interval (Fabian Möller)
     * Remove EXPERIMENTAL tags (Nick Craig-Wood)
 * Local
@@ -1209,7 +1496,7 @@ all the docs and Edward Barker for helping re-write the front page.
     * Fix v2 auth on files with spaces (Nick Craig-Wood)
 * Union
     * Implement union backend which reads from multiple backends (Felix Brucker)
-    * Implement optional interfaces (Move, DirMove, Copy etc) (Nick Craig-Wood)
+    * Implement optional interfaces (Move, DirMove, Copy, etc.) (Nick Craig-Wood)
     * Fix ChangeNotify to support multiple remotes (Fabian Möller)
     * Fix `--backup-dir` on union backend (Nick Craig-Wood)
 * WebDAV
@@ -1331,7 +1618,7 @@ Point release to fix hubic and azureblob backends.
 * Swift
     * Add `storage_policy` (Ruben Vandamme)
     * Make it so just `storage_url` or `auth_token` can be overridden (Nick Craig-Wood)
-    * Fix server side copy bug for unusual file names (Nick Craig-Wood)
+    * Fix server-side copy bug for unusual file names (Nick Craig-Wood)
     * Remove leading / from paths (Nick Craig-Wood)
 * WebDAV
     * Ensure we call MKCOL with a URL with a trailing / for QNAP interop (Nick Craig-Wood)
@@ -1458,7 +1745,7 @@ Point release to fix hubic and azureblob backends.
     * rc: fix setting bwlimit to unlimited
     * rc: take note of the --rc-addr flag too as per the docs
 * Mount
-    * Use About to return the correct disk total/used/free (eg in `df`)
+    * Use About to return the correct disk total/used/free (e.g. in `df`)
     * Set `--attr-timeout default` to `1s` - fixes:
         * rclone using too much memory
         * rclone not serving files to samba
@@ -1649,7 +1936,7 @@ Point release to fix hubic and azureblob backends.
     * Update docs to discourage use of v2 auth with CEPH and others
     * Don't check for bucket/container presence if listing was OK
         * this makes rclone do one less request per invocation
-    * Fix server side copy and set modtime on files with + in
+    * Fix server-side copy and set modtime on files with + in
 * SFTP
     * Add option to disable remote hash check command execution (Jon Fautley)
     * Add `--sftp-ask-password` flag to prompt for password when needed (Leo R. Lundgren)
@@ -1697,7 +1984,7 @@ Point release to fix hubic and azureblob backends.
     * Retry lots more different types of errors to make multipart transfers more reliable
     * Save the config before asking for a token, fixes disappearing oauth config
     * Warn the user if --include and --exclude are used together (Ernest Borowski)
-    * Fix duplicate files (eg on Google drive) causing spurious copies
+    * Fix duplicate files (e.g. on Google drive) causing spurious copies
     * Allow trailing and leading whitespace for passwords (Jason Rose)
     * ncdu: fix crashes on empty directories
     * rcat: fix goroutine leak
@@ -1786,7 +2073,7 @@ Point release to fix hubic and azureblob backends.
     * Fix "entry doesn't belong in directory" error
     * Stop using deprecated API methods
 * Swift
-    * Fix server side copy to empty container with `--fast-list`
+    * Fix server-side copy to empty container with `--fast-list`
 * Google Drive
     * Change the default for `--drive-use-trash` to `true`
 * S3
@@ -1886,7 +2173,7 @@ Point release to fix hubic and azureblob backends.
     * Retry on token expired error, reset upload body on retry - Yoni Jah
 * Google Cloud Storage
     * Add ability to specify location and storage class via config and command line - thanks gdm85
-    * Create container if necessary on server side copy
+    * Create container if necessary on server-side copy
     * Increase directory listing chunk to 1000 to increase performance
     * Obtain a refresh token for GCS - Steven Lu
 * Yandex
@@ -1902,14 +2189,14 @@ Point release to fix hubic and azureblob backends.
         * Now supports low level retries
 * S3
     * Work around eventual consistency in bucket creation
-    * Create container if necessary on server side copy
+    * Create container if necessary on server-side copy
     * Add us-east-2 (Ohio) and eu-west-2 (London) S3 regions - Zahiar Ahmed
 * Swift, Hubic
     * Fix zero length directory markers showing in the subdirectory listing
         * this caused lots of duplicate transfers
     * Fix paged directory listings
         * this caused duplicate directory errors
-    * Create container if necessary on server side copy
+    * Create container if necessary on server-side copy
     * Increase directory listing chunk to 1000 to increase performance
     * Make sensible error if the user forgets the container
 * SFTP
@@ -2011,7 +2298,7 @@ Point release to fix hubic and azureblob backends.
     * Allow repeated --include/--exclude/--filter options
     * Only show transfer stats on commands which transfer stuff
         * show stats on any command using the `--stats` flag
-    * Allow overlapping directories in move when server side dir move is supported
+    * Allow overlapping directories in move when server-side dir move is supported
     * Add --stats-unit option - thanks Scott McGillivray
 * Bug Fixes
     * Fix the config file being overwritten when two rclone instances are running
@@ -2033,7 +2320,7 @@ Point release to fix hubic and azureblob backends.
     * Fix failed to authenticate decrypted block errors
         * these will now return the underlying unexpected EOF instead
 * Amazon Drive
-    * Add support for server side move and directory move - thanks Stefan Breunig
+    * Add support for server-side move and directory move - thanks Stefan Breunig
     * Fix nil pointer deref on size attribute
 * B2
     * Use new prefix and delimiter parameters in directory listings
@@ -2125,7 +2412,7 @@ Point release to fix hubic and azureblob backends.
     * New B2 API endpoint (thanks Per Cederberg)
     * Set maximum backoff to 5 Minutes
 * onedrive
-    * Fix URL escaping in file names - eg uploading files with `+` in them.
+    * Fix URL escaping in file names - e.g. uploading files with `+` in them.
 * amazon cloud drive
     * Fix token expiry during large uploads
     * Work around 408 REQUEST_TIMEOUT and 504 GATEWAY_TIMEOUT errors
@@ -2166,7 +2453,7 @@ Point release to fix hubic and azureblob backends.
     * Skip setting the modified time for objects > 5GB as it isn't possible.
 * Backblaze B2
     * Add --b2-versions flag so old versions can be listed and retrieved.
-    * Treat 403 errors (eg cap exceeded) as fatal.
+    * Treat 403 errors (e.g. cap exceeded) as fatal.
     * Implement cleanup command for deleting old file versions.
     * Make error handling compliant with B2 integrations notes.
     * Fix handling of token expiry.
@@ -2189,7 +2476,7 @@ Point release to fix hubic and azureblob backends.
     * Log -v output to stdout by default
     * Display the transfer stats in more human readable form
     * Make 0 size files specifiable with `--max-size 0b`
-    * Add `b` suffix so we can specify bytes in --bwlimit, --min-size etc
+    * Add `b` suffix so we can specify bytes in --bwlimit, --min-size, etc.
     * Use "password:" instead of "password>" prompt - thanks Klaus Post and Leigh Klotz
 * Bug Fixes
     * Fix retry doing one too many retries
@@ -2324,7 +2611,7 @@ Point release to fix hubic and azureblob backends.
 * Swift
     * Fix sync for chunked files
 * OneDrive
-    * Re-enable server side copy
+    * Re-enable server-side copy
     * Don't mask HTTP error codes with JSON decode error
 * S3
     * Fix corrupting Content-Type on mod time update (thanks Joseph Spurrier)
@@ -2338,11 +2625,11 @@ Point release to fix hubic and azureblob backends.
         * This could have deleted files unexpectedly on sync
         * Always check first with `--dry-run`!
 * Swift
-    * Stop SetModTime losing metadata (eg X-Object-Manifest)
+    * Stop SetModTime losing metadata (e.g. X-Object-Manifest)
         * This could have caused data loss for files > 5GB in size
     * Use ContentType from Object to avoid lookups in listings
 * OneDrive
-    * disable server side copy as it seems to be broken at Microsoft
+    * disable server-side copy as it seems to be broken at Microsoft
 
 ## v1.24 - 2015-11-07
 
@@ -2403,7 +2690,7 @@ Point release to fix hubic and azureblob backends.
         * drive, googlecloudstorage: optionally use auto config for the oauth token
     * Implement --dump-headers and --dump-bodies debug flags
     * Show multiple matched commands if abbreviation too short
-    * Implement server side move where possible
+    * Implement server-side move where possible
 * local
     * Always use UNC paths internally on Windows - fixes a lot of bugs
 * dropbox
@@ -2414,7 +2701,7 @@ Point release to fix hubic and azureblob backends.
 
 * New features
     * Server side copies for s3/swift/drive/dropbox/gcs
-    * Move command - uses server side copies if it can
+    * Move command - uses server-side copies if it can
     * Implement --retries flag - tries 3 times by default
     * Build for plan9/amd64 and solaris/amd64 too
 * Fixes
@@ -2501,7 +2788,7 @@ Point release to fix hubic and azureblob backends.
 
 ## v1.09 - 2015-02-07
 
-* windows: Stop drive letters (eg C:) getting mixed up with remotes (eg drive:)
+* windows: Stop drive letters (e.g. C:) getting mixed up with remotes (e.g. drive:)
 * local: Fix directory separators on Windows
 * drive: fix rate limit exceeded errors
 

@@ -1,7 +1,7 @@
 // Package qingstor provides an interface to QingStor object storage
 // Home: https://www.qingcloud.com/
 
-// +build !plan9
+// +build !plan9,!js
 
 package qingstor
 
@@ -93,7 +93,7 @@ as multipart uploads using this chunk size.
 Note that "--qingstor-upload-concurrency" chunks of this size are buffered
 in memory per transfer.
 
-If you are transferring large files over high speed links and you have
+If you are transferring large files over high-speed links and you have
 enough memory, then increasing this will speed up the transfers.`,
 			Default:  minChunkSize,
 			Advanced: true,
@@ -104,10 +104,10 @@ enough memory, then increasing this will speed up the transfers.`,
 This is the number of chunks of the same file that are uploaded
 concurrently.
 
-NB if you set this to > 1 then the checksums of multpart uploads
+NB if you set this to > 1 then the checksums of multipart uploads
 become corrupted (the uploads themselves are not corrupted though).
 
-If you are uploading small numbers of large file over high speed link
+If you are uploading small numbers of large files over high-speed links
 and these uploads do not fully utilize your bandwidth, then increasing
 this may help to speed up the transfers.`,
 			Default:  1,
@@ -207,7 +207,7 @@ func (o *Object) split() (bucket, bucketPath string) {
 func qsParseEndpoint(endpoint string) (protocol, host, port string, err error) {
 	/*
 	  Pattern to match an endpoint,
-	  eg: "http(s)://qingstor.com:443" --> "http(s)", "qingstor.com", 443
+	  e.g.: "http(s)://qingstor.com:443" --> "http(s)", "qingstor.com", 443
 	      "http(s)//qingstor.com"      --> "http(s)", "qingstor.com", ""
 	      "qingstor.com"               --> "", "qingstor.com", ""
 	*/
@@ -428,7 +428,7 @@ func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options .
 	return fsObj, fsObj.Update(ctx, in, src, options...)
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //

@@ -108,7 +108,7 @@ on a minimal Alpine linux image.
 
 The `:latest` tag will always point to the latest stable release.  You
 can use the `:beta` tag to get the latest build from master.  You can
-also use version tags, eg `:1.49.1`, `:1.49` or `:1`.
+also use version tags, e.g. `:1.49.1`, `:1.49` or `:1`.
 
 ```
 $ docker pull rclone/rclone:latest
@@ -135,6 +135,13 @@ from the rclone image.
   As a result, all files created in a run will have UID=0. If your config and data files
   reside on the host with a non-root UID:GID, you need to pass these on the container
   start command line.
+
+- If you want to access the RC interface (either via the API or the Web UI), it is
+  required to set the `--rc-addr` to `:5572` in order to connect to it from outside
+  the container. An explanation about why this is necessary is present [here](https://web.archive.org/web/20200808071950/https://pythonspeed.com/articles/docker-connection-refused/).
+    * NOTE: Users running this container with the docker network set to `host` should
+     probably set it to listen to localhost only, with `127.0.0.1:5572` as the value for
+      `--rc-addr`
 
 - It is possible to use `rclone mount` inside a userspace Docker container, and expose
   the resulting fuse mount to the host. The exact `docker run` options to do that might
@@ -198,7 +205,7 @@ or the latest version (equivalent to the beta) with
 These will build the binary in `$(go env GOPATH)/bin`
 (`~/go/bin/rclone` by default) after downloading the source to the go
 module cache. Note - do **not** use the `-u` flag here. This causes go
-to try to update the depencencies that rclone uses and sometimes these
+to try to update the dependencies that rclone uses and sometimes these
 don't work with the current version of rclone.
 
 ## Installation with Ansible ##

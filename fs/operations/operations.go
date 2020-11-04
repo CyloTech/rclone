@@ -151,6 +151,15 @@ func defaultEqualOpt() equalOpt {
 	}
 }
 
+var modTimeUploadOnce sync.Once
+
+// emit a log if we are about to upload a file to set its modification time
+func logModTimeUpload(dst fs.Object) {
+	modTimeUploadOnce.Do(func() {
+		fs.Logf(dst.Fs(), "Forced to upload files to set modification times on this backend.")
+	})
+}
+
 func equal(ctx context.Context, src fs.ObjectInfo, dst fs.Object, opt equalOpt) bool {
 	if sizeDiffers(src, dst) {
 		fs.Debugf(src, "Sizes differ (src %d vs dst %d)", src.Size(), dst.Size())
@@ -172,9 +181,12 @@ func equal(ctx context.Context, src fs.ObjectInfo, dst fs.Object, opt equalOpt) 
 			return false
 		}
 		if ht == hash.None {
-			checksumWarning.Do(func() {
-				fs.Logf(dst.Fs(), "--checksum is in use but the source and destination have no hashes in common; falling back to --size-only")
-			})
+			common := src.Fs().Hashes().Overlap(dst.Fs().Hashes())
+			if common.Count() == 0 {
+				checksumWarning.Do(func() {
+					fs.Logf(dst.Fs(), "--checksum is in use but the source and destination have no hashes in common; falling back to --size-only")
+				})
+			}
 			fs.Debugf(src, "Size of src and dst objects identical")
 		} else {
 			fs.Debugf(src, "Size and %v of src and dst objects identical", ht)
@@ -223,10 +235,12 @@ func equal(ctx context.Context, src fs.ObjectInfo, dst fs.Object, opt equalOpt) 
 			// Update the mtime of the dst object here
 			err := dst.SetModTime(ctx, srcModTime)
 			if err == fs.ErrorCantSetModTime {
-				fs.Debugf(dst, "src and dst identical but can't set mod time without re-uploading")
+				logModTimeUpload(dst)
+				fs.Infof(dst, "src and dst identical but can't set mod time without re-uploading")
 				return false
 			} else if err == fs.ErrorCantSetModTimeWithoutDelete {
-				fs.Debugf(dst, "src and dst identical but can't set mod time without deleting and re-uploading")
+				logModTimeUpload(dst)
+				fs.Infof(dst, "src and dst identical but can't set mod time without deleting and re-uploading")
 				// Remove the file if BackupDir isn't set.  If BackupDir is set we would rather have the old file
 				// put in the BackupDir than deleted which is what will happen if we don't delete it.
 				if fs.Config.BackupDir == "" {
@@ -358,12 +372,22 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 
 	var actionTaken string
 	for {
-		// Try server side copy first - if has optional interface and
+		// Try server-side copy first - if has optional interface and
 		// is same underlying remote
-		actionTaken = "Copied (server side copy)"
-		if fs.Config.MaxTransfer >= 0 && (accounting.Stats(ctx).GetBytes() >= int64(fs.Config.MaxTransfer) ||
-			(fs.Config.CutoffMode == fs.CutoffModeCautious && accounting.Stats(ctx).GetBytesWithPending()+src.Size() >= int64(fs.Config.MaxTransfer))) {
-			return nil, accounting.ErrorMaxTransferLimitReachedFatal
+		actionTaken = "Copied (server-side copy)"
+		if fs.Config.MaxTransfer >= 0 {
+			var bytesSoFar int64
+			if fs.Config.CutoffMode == fs.CutoffModeCautious {
+				bytesSoFar = accounting.Stats(ctx).GetBytesWithPending() + src.Size()
+			} else {
+				bytesSoFar = accounting.Stats(ctx).GetBytes()
+			}
+			if bytesSoFar >= int64(fs.Config.MaxTransfer) {
+				if fs.Config.CutoffMode == fs.CutoffModeHard {
+					return nil, accounting.ErrorMaxTransferLimitReachedFatal
+				}
+				return nil, accounting.ErrorMaxTransferLimitReachedGraceful
+			}
 		}
 		if doCopy := f.Features().Copy; doCopy != nil && (SameConfig(src.Fs(), f) || (SameRemoteType(src.Fs(), f) && f.Features().ServerSideAcrossConfigs)) {
 			in := tr.Account(ctx, nil) // account the transfer
@@ -371,7 +395,7 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 			newDst, err = doCopy(ctx, src, remote)
 			if err == nil {
 				dst = newDst
-				in.ServerSideCopyEnd(dst.Size()) // account the bytes for the server side transfer
+				in.ServerSideCopyEnd(dst.Size()) // account the bytes for the server-side transfer
 				err = in.Close()
 			} else {
 				_ = in.Close()
@@ -382,7 +406,7 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 		} else {
 			err = fs.ErrorCantCopy
 		}
-		// If can't server side copy, do it manually
+		// If can't server-side copy, do it manually
 		if err == fs.ErrorCantCopy {
 			if doMultiThreadCopy(f, src) {
 				// Number of streams proportional to size
@@ -487,8 +511,11 @@ func Copy(ctx context.Context, f fs.Fs, dst fs.Object, remote string, src fs.Obj
 			return newDst, err
 		}
 	}
-
-	fs.Infof(src, actionTaken)
+	if src.String() != newDst.String() {
+		fs.Infof(src, "%s to: %s", actionTaken, newDst.String())
+	} else {
+		fs.Infof(src, actionTaken)
+	}
 	return newDst, err
 }
 
@@ -542,7 +569,12 @@ func Move(ctx context.Context, fdst fs.Fs, dst fs.Object, remote string, src fs.
 		newDst, err = doMove(ctx, src, remote)
 		switch err {
 		case nil:
-			fs.Infof(src, "Moved (server side)")
+			if src.String() != newDst.String() {
+				fs.Infof(src, "Moved (server-side) to: %s", newDst.String())
+			} else {
+				fs.Infof(src, "Moved (server-side)")
+			}
+
 			return newDst, nil
 		case fs.ErrorCantMove:
 			fs.Debugf(src, "Can't move, switching to copy")
@@ -562,8 +594,8 @@ func Move(ctx context.Context, fdst fs.Fs, dst fs.Object, remote string, src fs.
 	return newDst, DeleteFile(ctx, src)
 }
 
-// CanServerSideMove returns true if fdst support server side moves or
-// server side copies
+// CanServerSideMove returns true if fdst support server-side moves or
+// server-side copies
 //
 // Some remotes simulate rename by server-side copy and delete, so include
 // remotes that implements either Mover or Copier.
@@ -903,6 +935,7 @@ func Mkdir(ctx context.Context, f fs.Fs, dir string) error {
 // TryRmdir removes a container but not if not empty.  It doesn't
 // count errors but may return one.
 func TryRmdir(ctx context.Context, f fs.Fs, dir string) error {
+	accounting.Stats(ctx).DeletedDirs(1)
 	if SkipDestructive(ctx, fs.LogDirName(f, dir), "remove directory") {
 		return nil
 	}
@@ -925,6 +958,7 @@ func Purge(ctx context.Context, f fs.Fs, dir string) (err error) {
 	doFallbackPurge := true
 	if doPurge := f.Features().Purge; doPurge != nil {
 		doFallbackPurge = false
+		accounting.Stats(ctx).DeletedDirs(1)
 		if SkipDestructive(ctx, fs.LogDirName(f, dir), "purge directory") {
 			return nil
 		}
@@ -1273,7 +1307,7 @@ func GetCopyDest(fdst fs.Fs) (CopyDest fs.Fs, err error) {
 		return nil, fserrors.FatalError(errors.New("parameter to --copy-dest has to be on the same remote as destination"))
 	}
 	if CopyDest.Features().Copy == nil {
-		return nil, fserrors.FatalError(errors.New("can't use --copy-dest on a remote which doesn't support server side copy"))
+		return nil, fserrors.FatalError(errors.New("can't use --copy-dest on a remote which doesn't support server-side copy"))
 	}
 	return CopyDest, nil
 }
@@ -1315,7 +1349,7 @@ func copyDest(ctx context.Context, fdst fs.Fs, dst, src fs.Object, CopyDest, bac
 				fs.Errorf(src, "Destination found in --copy-dest, error copying")
 				return false, nil
 			}
-			fs.Debugf(src, "Destination found in --copy-dest, using server side copy")
+			fs.Debugf(src, "Destination found in --copy-dest, using server-side copy")
 			return true, nil
 		}
 		fs.Debugf(src, "Unchanged skipping")
@@ -1522,15 +1556,14 @@ func BackupDir(fdst fs.Fs, fsrc fs.Fs, srcFileName string) (backupDir fs.Fs, err
 				}
 			}
 		}
-	} else {
-		if srcFileName == "" {
-			return nil, fserrors.FatalError(errors.New("--suffix must be used with a file or with --backup-dir"))
-		}
+	} else if fs.Config.Suffix != "" {
 		// --backup-dir is not set but --suffix is - use the destination as the backupDir
 		backupDir = fdst
+	} else {
+		return nil, fserrors.FatalError(errors.New("internal error: BackupDir called when --backup-dir and --suffix both empty"))
 	}
 	if !CanServerSideMove(backupDir) {
-		return nil, fserrors.FatalError(errors.New("can't use --backup-dir on a remote which doesn't support server side move or copy"))
+		return nil, fserrors.FatalError(errors.New("can't use --backup-dir on a remote which doesn't support server-side move or copy"))
 	}
 	return backupDir, nil
 }

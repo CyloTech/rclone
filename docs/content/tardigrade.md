@@ -65,7 +65,7 @@ d) Delete this remote
 y/e/d> y
 ```
 
-### Setup with API key and passhprase
+### Setup with API key and passphrase
 
 ```
 No remotes found - make a new one
@@ -126,7 +126,7 @@ y/e/d> y
 ## Usage
 
 Paths are specified as `remote:bucket` (or `remote:` for the `lsf`
-command.)  You may put subdirectories in too, eg `remote:bucket/path/to/dir`.
+command.)  You may put subdirectories in too, e.g. `remote:bucket/path/to/dir`.
 
 Once configured you can then use `rclone` like this.
 

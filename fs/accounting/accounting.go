@@ -26,6 +26,10 @@ var ErrorMaxTransferLimitReached = errors.New("Max transfer limit reached as set
 // transfer limit is reached.
 var ErrorMaxTransferLimitReachedFatal = fserrors.FatalError(ErrorMaxTransferLimitReached)
 
+// ErrorMaxTransferLimitReachedGraceful is returned from operations.Copy when the max
+// transfer limit is reached and a graceful stop is required.
+var ErrorMaxTransferLimitReachedGraceful = fserrors.NoRetryError(ErrorMaxTransferLimitReached)
+
 // Account limits and accounts for one transfer
 type Account struct {
 	stats *StatsInfo
@@ -252,7 +256,7 @@ func (acc *Account) checkReadAfter(bytesUntilLimit int64, n int, err error) (out
 	return n, err
 }
 
-// ServerSideCopyStart should be called at the start of a server side copy
+// ServerSideCopyStart should be called at the start of a server-side copy
 //
 // This pretends a transfer has started
 func (acc *Account) ServerSideCopyStart() {
@@ -446,7 +450,7 @@ func shortenName(in string, size int) string {
 		return in
 	}
 	name := []rune(in)
-	size-- // don't count elipsis rune
+	size-- // don't count ellipsis rune
 	suffixLength := size / 2
 	prefixLength := size - suffixLength
 	suffixStart := len(name) - suffixLength

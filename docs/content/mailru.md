@@ -12,7 +12,7 @@ Currently it is recommended to disable 2FA on Mail.ru accounts intended for rclo
 
 ### Features highlights ###
 
-- Paths may be as deep as required, eg `remote:directory/subdirectory`
+- Paths may be as deep as required, e.g. `remote:directory/subdirectory`
 - Files have a `last modified time` property, directories don't
 - Deleted files are by default moved to the trash
 - Files and directories can be shared via public links
@@ -180,6 +180,8 @@ User name (usually email)
 #### --mailru-pass
 
 Password
+
+**NB** Input to this must be obscured - see [rclone obscure](/commands/rclone_obscure/).
 
 - Config:      pass
 - Env Var:     RCLONE_MAILRU_PASS

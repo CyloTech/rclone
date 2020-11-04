@@ -491,7 +491,7 @@ type Usage struct {
 	Total   *int64 `json:"total,omitempty"`   // quota of bytes that can be used
 	Used    *int64 `json:"used,omitempty"`    // bytes in use
 	Trashed *int64 `json:"trashed,omitempty"` // bytes in trash
-	Other   *int64 `json:"other,omitempty"`   // other usage eg gmail in drive
+	Other   *int64 `json:"other,omitempty"`   // other usage e.g. gmail in drive
 	Free    *int64 `json:"free,omitempty"`    // bytes which can be uploaded before reaching the quota
 	Objects *int64 `json:"objects,omitempty"` // objects in the storage system
 }
@@ -510,11 +510,11 @@ type Features struct {
 	ReadMimeType            bool // can read the mime type of objects
 	WriteMimeType           bool // can set the mime type of objects
 	CanHaveEmptyDirectories bool // can have empty directories
-	BucketBased             bool // is bucket based (like s3, swift etc)
+	BucketBased             bool // is bucket based (like s3, swift, etc.)
 	BucketBasedRootOK       bool // is bucket based and can use from root
 	SetTier                 bool // allows set tier functionality on objects
 	GetTier                 bool // allows to retrieve storage tier of objects
-	ServerSideAcrossConfigs bool // can server side copy between different remotes of the same type
+	ServerSideAcrossConfigs bool // can server-side copy between different remotes of the same type
 	IsLocal                 bool // is the local backend
 	SlowModTime             bool // if calling ModTime() generally takes an extra transaction
 	SlowHash                bool // if calling Hash() generally takes an extra transaction
@@ -527,7 +527,7 @@ type Features struct {
 	// Return an error if it doesn't exist
 	Purge func(ctx context.Context, dir string) error
 
-	// Copy src to this remote using server side copy operations.
+	// Copy src to this remote using server-side copy operations.
 	//
 	// This is stored with the remote path given
 	//
@@ -538,7 +538,7 @@ type Features struct {
 	// If it isn't possible then return fs.ErrorCantCopy
 	Copy func(ctx context.Context, src Object, remote string) (Object, error)
 
-	// Move src to this remote using server side move operations.
+	// Move src to this remote using server-side move operations.
 	//
 	// This is stored with the remote path given
 	//
@@ -550,7 +550,7 @@ type Features struct {
 	Move func(ctx context.Context, src Object, remote string) (Object, error)
 
 	// DirMove moves src, srcRemote to this remote at dstRemote
-	// using server side move operations.
+	// using server-side move operations.
 	//
 	// Will only be called if src.Fs().Name() == f.Name()
 	//
@@ -895,7 +895,7 @@ type Purger interface {
 
 // Copier is an optional interface for Fs
 type Copier interface {
-	// Copy src to this remote using server side copy operations.
+	// Copy src to this remote using server-side copy operations.
 	//
 	// This is stored with the remote path given
 	//
@@ -909,7 +909,7 @@ type Copier interface {
 
 // Mover is an optional interface for Fs
 type Mover interface {
-	// Move src to this remote using server side move operations.
+	// Move src to this remote using server-side move operations.
 	//
 	// This is stored with the remote path given
 	//
@@ -924,7 +924,7 @@ type Mover interface {
 // DirMover is an optional interface for Fs
 type DirMover interface {
 	// DirMove moves src, srcRemote to this remote at dstRemote
-	// using server side move operations.
+	// using server-side move operations.
 	//
 	// Will only be called if src.Fs().Name() == f.Name()
 	//
@@ -1080,7 +1080,7 @@ type Disconnecter interface {
 //
 // These are automatically inserted in the docs
 type CommandHelp struct {
-	Name  string            // Name of the command, eg "link"
+	Name  string            // Name of the command, e.g. "link"
 	Short string            // Single line description
 	Long  string            // Long multi-line description
 	Opts  map[string]string // maps option name to a single line help
@@ -1142,6 +1142,16 @@ func UnWrapObject(o Object) Object {
 		o = next
 	}
 	return o
+}
+
+// UnWrapObjectInfo returns the underlying Object unwrapped as much as
+// possible or nil.
+func UnWrapObjectInfo(oi ObjectInfo) Object {
+	o, ok := oi.(Object)
+	if !ok {
+		return nil
+	}
+	return UnWrapObject(o)
 }
 
 // Find looks for a RegInfo object for the name passed in.  The name
@@ -1334,6 +1344,7 @@ func ConfigFs(path string) (fsInfo *RegInfo, configName, fsPath string, config *
 // On Windows avoid single character remote names as they can be mixed
 // up with drive letters.
 func NewFs(path string) (Fs, error) {
+	Debugf(nil, "Creating backend with remote %q", path)
 	fsInfo, configName, fsPath, config, err := ConfigFs(path)
 	if err != nil {
 		return nil, err

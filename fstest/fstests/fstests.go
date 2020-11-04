@@ -335,7 +335,8 @@ func Run(t *testing.T, opt *Opt) {
 	// Return true if f (or any of the things it wraps) is bucket
 	// based but not at the root.
 	isBucketBasedButNotRoot := func(f fs.Fs) bool {
-		return fs.UnWrapFs(f).Features().BucketBased && strings.Contains(strings.Trim(f.Root(), "/"), "/")
+		f = fs.UnWrapFs(f)
+		return f.Features().BucketBased && strings.Contains(strings.Trim(f.Root(), "/"), "/")
 	}
 
 	// Initialise the remote
@@ -1106,7 +1107,7 @@ func Run(t *testing.T, opt *Opt) {
 				require.NoError(t, remote.Rmdir(ctx, "moveTest"))
 			})
 
-			// Move src to this remote using server side move operations.
+			// Move src to this remote using server-side move operations.
 			//
 			// Will only be called if src.Fs().Name() == f.Name()
 			//
@@ -1874,6 +1875,9 @@ func Run(t *testing.T, opt *Opt) {
 		if !isBucketBasedButNotRoot(remote) {
 			err = operations.Purge(ctx, remote, "")
 			assert.Error(t, err, "Expecting error after on second purge")
+			if errors.Cause(err) != fs.ErrorDirNotFound {
+				t.Log("Warning: this should produce fs.ErrorDirNotFound")
+			}
 		}
 
 	})

@@ -399,3 +399,27 @@ put them back in again.` >}}
   * kcris <cristian.tarsoaga@gmail.com>
   * tyhuber1 <68970760+tyhuber1@users.noreply.github.com>
   * David Ibarra <david.ibarra@realty.com>
+  * Tim Gallant <tim@lilt.com>
+  * Kaloyan Raev <kaloyan@storj.io>
+  * Jay McEntire <jay.mcentire@gmail.com>
+  * Leo Luan <leoluan@us.ibm.com>
+  * aus <549081+aus@users.noreply.github.com>
+  * Aaron Gokaslan <agokaslan@fb.com>
+  * Egor Margineanu <egmar@users.noreply.github.com>
+  * Lucas Kanashiro <lucas.kanashiro@canonical.com>
+  * WarpedPixel <WarpedPixel@users.noreply.github.com>
+  * Sam Edwards <sam@samedwards.ca>
+  * wjielai <gouki0123@gmail.com>
+  * Muffin King <jinxz_k@live.com>
+  * Christopher Stewart <6573710+1f47a@users.noreply.github.com>
+  * Russell Cattelan <cattelan@digitalelves.com>
+  * gyutw <30371241+gyutw@users.noreply.github.com>
+  * Hekmon <edouardhur@gmail.com>
+  * LaSombra <lasombra@users.noreply.github.com>
+  * Dov Murik <dov.murik@gmail.com>
+  * Ameer Dawood <ameer1234567890@gmail.com>
+  * Dan Hipschman <dan.hipschman@opendoor.com>
+  * Josh Soref <jsoref@users.noreply.github.com>
+  * David <david@staron.nl>
+  * Ingo <ingo@hoffmann.cx>
+  * Adam Plánský <adamplansky@users.noreply.github.com> <adamplansky@gmail.com>

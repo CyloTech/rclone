@@ -736,7 +736,7 @@ func TestMoveFileBackupDir(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 	if !operations.CanServerSideMove(r.Fremote) {
-		t.Skip("Skipping test as remote does not support server side move or copy")
+		t.Skip("Skipping test as remote does not support server-side move or copy")
 	}
 
 	oldBackupDir := fs.Config.BackupDir
@@ -788,7 +788,7 @@ func TestCopyFileBackupDir(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 	if !operations.CanServerSideMove(r.Fremote) {
-		t.Skip("Skipping test as remote does not support server side move or copy")
+		t.Skip("Skipping test as remote does not support server-side move or copy")
 	}
 
 	oldBackupDir := fs.Config.BackupDir
@@ -896,7 +896,7 @@ func TestCopyFileCopyDest(t *testing.T) {
 	defer r.Finalise()
 
 	if r.Fremote.Features().Copy == nil {
-		t.Skip("Skipping test as remote does not support server side copy")
+		t.Skip("Skipping test as remote does not support server-side copy")
 	}
 
 	fs.Config.CopyDest = r.FremoteName + "/CopyDest"
@@ -1428,7 +1428,7 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file2.Path, file2.Path)
 	require.NotNil(t, err, "Did not get expected max transfer limit error")
 	assert.Contains(t, err.Error(), "Max transfer limit reached")
-	assert.True(t, fserrors.IsFatalError(err))
+	assert.True(t, fserrors.IsFatalError(err), fmt.Sprintf("Not fatal error: %v: %#v:", err, err))
 	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
 	fstest.CheckItems(t, r.Fremote, file1)
 
@@ -1440,7 +1440,7 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file3.Path, file3.Path)
 	require.NotNil(t, err)
 	assert.Contains(t, err.Error(), "Max transfer limit reached")
-	assert.True(t, fserrors.IsFatalError(err))
+	assert.True(t, fserrors.IsNoRetryError(err))
 	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
 	fstest.CheckItems(t, r.Fremote, file1)
 

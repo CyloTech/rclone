@@ -60,7 +60,7 @@ func init() {
 // Options defines the configuration for this backend
 type Options struct {
 	Upstreams    fs.SpaceSepList `config:"upstreams"`
-	Remotes      fs.SpaceSepList `config:"remotes"` // Depreated
+	Remotes      fs.SpaceSepList `config:"remotes"` // Deprecated
 	ActionPolicy string          `config:"action_policy"`
 	CreatePolicy string          `config:"create_policy"`
 	SearchPolicy string          `config:"search_policy"`
@@ -145,11 +145,16 @@ func (f *Fs) Hashes() hash.Set {
 // Mkdir makes the root directory of the Fs object
 func (f *Fs) Mkdir(ctx context.Context, dir string) error {
 	upstreams, err := f.create(ctx, dir)
-	if err == fs.ErrorObjectNotFound && dir != parentDir(dir) {
-		if err := f.Mkdir(ctx, parentDir(dir)); err != nil {
-			return err
+	if err == fs.ErrorObjectNotFound {
+		if dir != parentDir(dir) {
+			if err := f.Mkdir(ctx, parentDir(dir)); err != nil {
+				return err
+			}
+			upstreams, err = f.create(ctx, dir)
+		} else if dir == "" {
+			// If root dirs not created then create them
+			upstreams, err = f.upstreams, nil
 		}
-		upstreams, err = f.create(ctx, dir)
 	}
 	if err != nil {
 		return err
@@ -181,12 +186,15 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 	errs := Errors(make([]error, len(upstreams)))
 	multithread(len(upstreams), func(i int) {
 		err := upstreams[i].Features().Purge(ctx, dir)
+		if errors.Cause(err) == fs.ErrorDirNotFound {
+			err = nil
+		}
 		errs[i] = errors.Wrap(err, upstreams[i].Name())
 	})
 	return errs.Err()
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -226,7 +234,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	return wo.(*Object), err
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -290,7 +298,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //
@@ -382,6 +390,37 @@ func (f *Fs) DirCacheFlush() {
 	})
 }
 
+// Tee in into n outputs
+//
+// When finished read the error from the channel
+func multiReader(n int, in io.Reader) ([]io.Reader, <-chan error) {
+	readers := make([]io.Reader, n)
+	pipeWriters := make([]*io.PipeWriter, n)
+	writers := make([]io.Writer, n)
+	errChan := make(chan error, 1)
+	for i := range writers {
+		r, w := io.Pipe()
+		bw := bufio.NewWriter(w)
+		readers[i], pipeWriters[i], writers[i] = r, w, bw
+	}
+	go func() {
+		mw := io.MultiWriter(writers...)
+		es := make([]error, 2*n+1)
+		_, copyErr := io.Copy(mw, in)
+		es[2*n] = copyErr
+		// Flush the buffers
+		for i, bw := range writers {
+			es[i] = bw.(*bufio.Writer).Flush()
+		}
+		// Close the underlying pipes
+		for i, pw := range pipeWriters {
+			es[2*i] = pw.CloseWithError(copyErr)
+		}
+		errChan <- Errors(es).Err()
+	}()
+	return readers, errChan
+}
+
 func (f *Fs) put(ctx context.Context, in io.Reader, src fs.ObjectInfo, stream bool, options ...fs.OpenOption) (fs.Object, error) {
 	srcPath := src.Remote()
 	upstreams, err := f.create(ctx, srcPath)
@@ -409,31 +448,9 @@ func (f *Fs) put(ctx context.Context, in io.Reader, src fs.ObjectInfo, stream bo
 		e, err := f.wrapEntries(u.WrapObject(o))
 		return e.(*Object), err
 	}
-	errs := Errors(make([]error, len(upstreams)+1))
-	// Get multiple reader
-	readers := make([]io.Reader, len(upstreams))
-	writers := make([]io.Writer, len(upstreams))
-	for i := range writers {
-		r, w := io.Pipe()
-		bw := bufio.NewWriter(w)
-		readers[i], writers[i] = r, bw
-		defer func() {
-			err := w.Close()
-			if err != nil {
-				panic(err)
-			}
-		}()
-	}
-	go func() {
-		mw := io.MultiWriter(writers...)
-		es := make([]error, len(writers)+1)
-		_, es[len(es)-1] = io.Copy(mw, in)
-		for i, bw := range writers {
-			es[i] = bw.(*bufio.Writer).Flush()
-		}
-		errs[len(upstreams)] = Errors(es).Err()
-	}()
 	// Multi-threading
+	readers, errChan := multiReader(len(upstreams), in)
+	errs := Errors(make([]error, len(upstreams)+1))
 	objs := make([]upstream.Entry, len(upstreams))
 	multithread(len(upstreams), func(i int) {
 		u := upstreams[i]
@@ -450,6 +467,7 @@ func (f *Fs) put(ctx context.Context, in io.Reader, src fs.ObjectInfo, stream bo
 		}
 		objs[i] = u.WrapObject(o)
 	})
+	errs[len(upstreams)] = <-errChan
 	err = errs.Err()
 	if err != nil {
 		return nil, err
@@ -504,6 +522,9 @@ func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
 	}
 	for _, u := range f.upstreams {
 		usg, err := u.About(ctx)
+		if errors.Cause(err) == fs.ErrorDirNotFound {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -551,7 +572,7 @@ func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
 // This should return ErrDirNotFound if the directory isn't
 // found.
 func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
-	entriess := make([][]upstream.Entry, len(f.upstreams))
+	entriesList := make([][]upstream.Entry, len(f.upstreams))
 	errs := Errors(make([]error, len(f.upstreams)))
 	multithread(len(f.upstreams), func(i int) {
 		u := f.upstreams[i]
@@ -564,7 +585,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		for j, e := range entries {
 			uEntries[j], _ = u.WrapEntry(e)
 		}
-		entriess[i] = uEntries
+		entriesList[i] = uEntries
 	})
 	if len(errs) == len(errs.FilterNil()) {
 		errs = errs.Map(func(e error) error {
@@ -578,7 +599,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		}
 		return nil, errs.Err()
 	}
-	return f.mergeDirEntries(entriess)
+	return f.mergeDirEntries(entriesList)
 }
 
 // ListR lists the objects and directories of the Fs starting
@@ -598,7 +619,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 // Don't implement this unless you have a more efficient way
 // of listing recursively that doing a directory traversal.
 func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
-	var entriess [][]upstream.Entry
+	var entriesList [][]upstream.Entry
 	errs := Errors(make([]error, len(f.upstreams)))
 	var mutex sync.Mutex
 	multithread(len(f.upstreams), func(i int) {
@@ -610,7 +631,7 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 				uEntries[j], _ = u.WrapEntry(e)
 			}
 			mutex.Lock()
-			entriess = append(entriess, uEntries)
+			entriesList = append(entriesList, uEntries)
 			mutex.Unlock()
 			return nil
 		}
@@ -637,7 +658,7 @@ func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (
 		}
 		return errs.Err()
 	}
-	entries, err := f.mergeDirEntries(entriess)
+	entries, err := f.mergeDirEntries(entriesList)
 	if err != nil {
 		return err
 	}
@@ -708,9 +729,9 @@ func (f *Fs) searchEntries(entries ...upstream.Entry) (upstream.Entry, error) {
 	return f.searchPolicy.SearchEntries(entries...)
 }
 
-func (f *Fs) mergeDirEntries(entriess [][]upstream.Entry) (fs.DirEntries, error) {
+func (f *Fs) mergeDirEntries(entriesList [][]upstream.Entry) (fs.DirEntries, error) {
 	entryMap := make(map[string]([]upstream.Entry))
-	for _, en := range entriess {
+	for _, en := range entriesList {
 		if en == nil {
 			continue
 		}
@@ -802,6 +823,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	if err != nil {
 		return nil, err
 	}
+	fs.Debugf(f, "actionPolicy = %T, createPolicy = %T, searchPolicy = %T", f.actionPolicy, f.createPolicy, f.searchPolicy)
 	var features = (&fs.Features{
 		CaseInsensitive:         true,
 		DuplicateFiles:          false,

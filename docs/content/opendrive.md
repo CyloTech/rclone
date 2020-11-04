@@ -8,7 +8,7 @@ description: "Rclone docs for OpenDrive"
 
 Paths are specified as `remote:path`
 
-Paths may be as deep as required, eg `remote:directory/subdirectory`.
+Paths may be as deep as required, e.g. `remote:directory/subdirectory`.
 
 Here is an example of how to make a remote called `remote`.  First run:
 
@@ -115,6 +115,8 @@ Username
 #### --opendrive-password
 
 Password.
+
+**NB** Input to this must be obscured - see [rclone obscure](/commands/rclone_obscure/).
 
 - Config:      password
 - Env Var:     RCLONE_OPENDRIVE_PASSWORD

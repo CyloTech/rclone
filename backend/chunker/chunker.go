@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/cache"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/rclone/rclone/fs/fspath"
@@ -41,7 +42,7 @@ import (
 // used mostly for consistency checks (lazily for performance reasons).
 // Other formats can be developed that use an external meta store
 // free of these limitations, but this needs some support from
-// rclone core (eg. metadata store interfaces).
+// rclone core (e.g. metadata store interfaces).
 //
 // The following types of chunks are supported:
 // data and control, active and temporary.
@@ -139,7 +140,7 @@ func init() {
 			Name:     "remote",
 			Required: true,
 			Help: `Remote to chunk/unchunk.
-Normally should contain a ':' and a path, eg "myremote:path/to/dir",
+Normally should contain a ':' and a path, e.g. "myremote:path/to/dir",
 "myremote:bucket" or maybe "myremote:" (not recommended).`,
 		}, {
 			Name:     "chunk_size",
@@ -238,18 +239,21 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 		return nil, errors.New("can't point remote at itself - check the value of the remote setting")
 	}
 
-	baseInfo, baseName, basePath, baseConfig, err := fs.ConfigFs(remote)
+	baseName, basePath, err := fspath.Parse(remote)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse remote %q to wrap", remote)
 	}
+	if baseName != "" {
+		baseName += ":"
+	}
 	// Look for a file first
 	remotePath := fspath.JoinRootPath(basePath, rpath)
-	baseFs, err := baseInfo.NewFs(baseName, remotePath, baseConfig)
+	baseFs, err := cache.Get(baseName + remotePath)
 	if err != fs.ErrorIsFile && err != nil {
-		return nil, errors.Wrapf(err, "failed to make remote %s:%q to wrap", baseName, remotePath)
+		return nil, errors.Wrapf(err, "failed to make remote %q to wrap", baseName+remotePath)
 	}
 	if !operations.CanServerSideMove(baseFs) {
-		return nil, errors.New("can't use chunker on a backend which doesn't support server side move or copy")
+		return nil, errors.New("can't use chunker on a backend which doesn't support server-side move or copy")
 	}
 
 	f := &Fs{
@@ -258,6 +262,7 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 		root: rpath,
 		opt:  *opt,
 	}
+	cache.PinUntilFinalized(f.base, f)
 	f.dirSort = true // processEntries requires that meta Objects prerun data chunks atm.
 
 	if err := f.configure(opt.NameFormat, opt.MetaFormat, opt.HashType); err != nil {
@@ -271,7 +276,7 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 	// (yet can't satisfy fstest.CheckListing, will ignore)
 	if err == nil && !f.useMeta && strings.Contains(rpath, "/") {
 		firstChunkPath := f.makeChunkName(remotePath, 0, "", "")
-		_, testErr := baseInfo.NewFs(baseName, firstChunkPath, baseConfig)
+		_, testErr := cache.Get(baseName + firstChunkPath)
 		if testErr == fs.ErrorIsFile {
 			err = testErr
 		}
@@ -290,6 +295,8 @@ func NewFs(name, rpath string, m configmap.Mapper) (fs.Fs, error) {
 		CanHaveEmptyDirectories: true,
 		ServerSideAcrossConfigs: true,
 	}).Fill(f).Mask(baseFs).WrapsFs(f, baseFs)
+
+	f.features.Disable("ListR") // Recursive listing may cause chunker skip files
 
 	return f, err
 }
@@ -457,7 +464,7 @@ func (f *Fs) setChunkNameFormat(pattern string) error {
 // filePath can be name, relative or absolute path of main file.
 //
 // chunkNo must be a zero based index of data chunk.
-// Negative chunkNo eg. -1 indicates a control chunk.
+// Negative chunkNo e.g. -1 indicates a control chunk.
 // ctrlType is type of control chunk (must be valid).
 // ctrlType must be "" for data chunks.
 //
@@ -953,6 +960,8 @@ func (f *Fs) put(ctx context.Context, in io.Reader, src fs.ObjectInfo, remote st
 		}
 		info := f.wrapInfo(src, chunkRemote, size)
 
+		// Refill chunkLimit and let basePut repeatedly call chunkingReader.Read()
+		c.chunkLimit = c.chunkSize
 		// TODO: handle range/limit options
 		chunk, errChunk := basePut(ctx, wrapIn, info, options...)
 		if errChunk != nil {
@@ -985,7 +994,7 @@ func (f *Fs) put(ctx context.Context, in io.Reader, src fs.ObjectInfo, remote st
 		}
 
 		// Wrapped remote may or may not have seen EOF from chunking reader,
-		// eg. the box multi-uploader reads exactly the chunk size specified
+		// e.g. the box multi-uploader reads exactly the chunk size specified
 		// and skips the "EOF" read. Hence, switch to next limit here.
 		if !(c.chunkLimit == 0 || c.chunkLimit == c.chunkSize || c.sizeTotal == -1 || c.done) {
 			silentlyRemove(ctx, chunk)
@@ -1121,6 +1130,12 @@ func (c *chunkingReader) wrapStream(ctx context.Context, in io.Reader, src fs.Ob
 
 	switch {
 	case c.fs.useMD5:
+		srcObj := fs.UnWrapObjectInfo(src)
+		if srcObj != nil && srcObj.Fs().Features().SlowHash {
+			fs.Debugf(src, "skip slow MD5 on source file, hashing in-transit")
+			c.hasher = md5.New()
+			break
+		}
 		if c.md5, _ = src.Hash(ctx, hash.MD5); c.md5 == "" {
 			if c.fs.hashFallback {
 				c.sha1, _ = src.Hash(ctx, hash.SHA1)
@@ -1129,6 +1144,12 @@ func (c *chunkingReader) wrapStream(ctx context.Context, in io.Reader, src fs.Ob
 			}
 		}
 	case c.fs.useSHA1:
+		srcObj := fs.UnWrapObjectInfo(src)
+		if srcObj != nil && srcObj.Fs().Features().SlowHash {
+			fs.Debugf(src, "skip slow SHA1 on source file, hashing in-transit")
+			c.hasher = sha1.New()
+			break
+		}
 		if c.sha1, _ = src.Hash(ctx, hash.SHA1); c.sha1 == "" {
 			if c.fs.hashFallback {
 				c.md5, _ = src.Hash(ctx, hash.MD5)
@@ -1161,10 +1182,14 @@ func (c *chunkingReader) updateHashes() {
 func (c *chunkingReader) Read(buf []byte) (bytesRead int, err error) {
 	if c.chunkLimit <= 0 {
 		// Chunk complete - switch to next one.
-		// We might not get here because some remotes (eg. box multi-uploader)
+		// Note #1:
+		// We might not get here because some remotes (e.g. box multi-uploader)
 		// read the specified size exactly and skip the concluding EOF Read.
 		// Then a check in the put loop will kick in.
-		c.chunkLimit = c.chunkSize
+		// Note #2:
+		// The crypt backend after receiving EOF here will call Read again
+		// and we must insist on returning EOF, so we postpone refilling
+		// chunkLimit to the main loop.
 		return 0, io.EOF
 	}
 	if int64(len(buf)) > c.chunkLimit {
@@ -1197,7 +1222,7 @@ func (c *chunkingReader) accountBytes(bytesRead int64) {
 	}
 }
 
-// dummyRead updates accounting, hashsums etc by simulating reads
+// dummyRead updates accounting, hashsums, etc. by simulating reads
 func (c *chunkingReader) dummyRead(in io.Reader, size int64) error {
 	if c.hasher == nil && c.readCount+size > maxMetadataSize {
 		c.accountBytes(size)
@@ -1362,7 +1387,7 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 // However, if rclone dies unexpectedly, it can leave hidden temporary
 // chunks, which cannot be discovered using the `list` command.
 // Remove does not try to search for such chunks or to delete them.
-// Sometimes this can lead to strange results eg. when `list` shows that
+// Sometimes this can lead to strange results e.g. when `list` shows that
 // directory is empty but `rmdir` refuses to remove it because on the
 // level of wrapped remote it's actually *not* empty.
 // As a workaround users can use `purge` to forcibly remove it.
@@ -1553,7 +1578,7 @@ func (f *Fs) okForServerSide(ctx context.Context, src fs.Object, opName string) 
 	return
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -1574,7 +1599,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	return f.copyOrMove(ctx, obj, remote, baseCopy, md5, sha1, "copy")
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -1619,7 +1644,7 @@ func (f *Fs) baseMove(ctx context.Context, src fs.Object, remote string, delMode
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //

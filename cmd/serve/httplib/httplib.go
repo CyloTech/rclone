@@ -30,7 +30,7 @@ var Help = `
 ### Server options
 
 Use --addr to specify which IP address and port the server should
-listen on, eg --addr 1.2.3.4:8000 or --addr :8080 to listen to all
+listen on, e.g. --addr 1.2.3.4:8000 or --addr :8080 to listen to all
 IPs.  By default it only listens on localhost.  You can use port
 :0 to let the OS choose an available port.
 
@@ -61,7 +61,7 @@ to be used within the template to server pages:
 | .Name       | The full path of a file/directory. |
 | .Title      | Directory listing of .Name |
 | .Sort       | The current sort used.  This is changeable via ?sort= parameter |
-|             | Sort Options: namedirfist,name,size,time (default namedirfirst) |
+|             | Sort Options: namedirfirst,name,size,time (default namedirfirst) |
 | .Order      | The current ordering used.  This is changeable via ?order= parameter |
 |             | Order Options: asc,desc (default asc) |
 | .Query      | Currently unused. |

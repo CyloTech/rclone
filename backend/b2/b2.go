@@ -121,7 +121,7 @@ This value should be set no larger than 4.657GiB (== 5GB).`,
 			Name: "copy_cutoff",
 			Help: `Cutoff for switching to multipart copy
 
-Any files larger than this that need to be server side copied will be
+Any files larger than this that need to be server-side copied will be
 copied in chunks of this size.
 
 The minimum is 0 and the maximum is 4.6GB.`,
@@ -290,7 +290,7 @@ func (o *Object) split() (bucket, bucketPath string) {
 
 // retryErrorCodes is a slice of error codes that we will retry
 var retryErrorCodes = []int{
-	401, // Unauthorized (eg "Token has expired")
+	401, // Unauthorized (e.g. "Token has expired")
 	408, // Request Timeout
 	429, // Rate exceeded.
 	500, // Get occasional 500 Internal Server Error
@@ -1234,7 +1234,7 @@ func (f *Fs) CleanUp(ctx context.Context) error {
 	return f.purge(ctx, "", true)
 }
 
-// copy does a server side copy from dstObj <- srcObj
+// copy does a server-side copy from dstObj <- srcObj
 //
 // If newInfo is nil then the metadata will be copied otherwise it
 // will be replaced with newInfo
@@ -1291,7 +1291,7 @@ func (f *Fs) copy(ctx context.Context, dstObj *Object, srcObj *Object, newInfo *
 	return dstObj.decodeMetaDataFileInfo(&response)
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -1440,7 +1440,7 @@ func (o *Object) Size() int64 {
 // Make sure it is lower case
 //
 // Remove unverified prefix - see https://www.backblaze.com/b2/docs/uploading.html
-// Some tools (eg Cyberduck) use this
+// Some tools (e.g. Cyberduck) use this
 func cleanSHA1(sha1 string) (out string) {
 	out = strings.ToLower(sha1)
 	const unverified = "unverified:"

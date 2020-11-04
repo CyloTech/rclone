@@ -37,7 +37,7 @@ verifies checksums at all times. Transfers over limited bandwidth;
 intermittent connections, or subject to quota can be restarted, from
 the last good file transferred. You can
 [check](/commands/rclone_check/) the integrity of your files. Where
-possible, rclone employs server side transfers to minimise local
+possible, rclone employs server-side transfers to minimise local
 bandwidth use and transfers from one provider to another without
 using local disk.
 
@@ -86,7 +86,7 @@ Rclone helps you:
     - MD5, SHA1 hashes are checked at all times for file integrity
     - Timestamps are preserved on files
     - Operations can be restarted at any time
-    - Can be to and from network, eg two different cloud providers
+    - Can be to and from network, e.g. two different cloud providers
     - Can use multi-threaded downloads to local disk
 - [Copy](/commands/rclone_copy/) new or changed files to cloud storage
 - [Sync](/commands/rclone_sync/) (one way) to make a directory identical
@@ -148,6 +148,7 @@ WebDAV or S3, that work out of the box.)
 {{< provider name="StackPath" home="https://www.stackpath.com/products/object-storage/" config="/s3/#stackpath" >}}
 {{< provider name="SugarSync" home="https://sugarsync.com/" config="/sugarsync/" >}}
 {{< provider name="Tardigrade" home="https://tardigrade.io/" config="/tardigrade/" >}}
+{{< provider name="Tencent Cloud Object Storage (COS)" home="https://intl.cloud.tencent.com/product/cos" config="/s3/#tencent-cos" >}}
 {{< provider name="Wasabi" home="https://wasabi.com/" config="/s3/#wasabi" >}}
 {{< provider name="WebDAV" home="https://en.wikipedia.org/wiki/WebDAV" config="/webdav/" >}}
 {{< provider name="Yandex Disk" home="https://disk.yandex.com/" config="/yandex/" >}}

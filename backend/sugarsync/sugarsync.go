@@ -350,7 +350,7 @@ func (f *Fs) getAuth(req *http.Request) (err error) {
 	// if have auth, check it is in date
 	if f.opt.Authorization == "" || f.opt.User == "" || f.authExpiry.IsZero() || time.Until(f.authExpiry) < expiryLeeway {
 		// Get the auth token
-		f.srv.SetSigner(nil) // temporariliy remove the signer so we don't infinitely recurse
+		f.srv.SetSigner(nil) // temporarily remove the signer so we don't infinitely recurse
 		err = f.getAuthToken(ctx)
 		f.srv.SetSigner(f.getAuth) // replace signer
 		if err != nil {
@@ -576,7 +576,7 @@ func (f *Fs) CreateDir(ctx context.Context, pathID, leaf string) (newID string, 
 	}
 	newID = resp.Header.Get("Location")
 	if newID == "" {
-		// look up ID if not returned (eg for syncFolder)
+		// look up ID if not returned (e.g. for syncFolder)
 		var found bool
 		newID, found, err = f.FindLeaf(ctx, pathID, leaf)
 		if err != nil {
@@ -837,7 +837,7 @@ func (f *Fs) Precision() time.Duration {
 	return fs.ModTimeNotSupported
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -923,7 +923,7 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 	return f.purgeCheck(ctx, dir, false)
 }
 
-// moveFile moves a file server side
+// moveFile moves a file server-side
 func (f *Fs) moveFile(ctx context.Context, id, leaf, directoryID string) (info *api.File, err error) {
 	opts := rest.Opts{
 		Method:  "PUT",
@@ -951,7 +951,7 @@ func (f *Fs) moveFile(ctx context.Context, id, leaf, directoryID string) (info *
 	return info, nil
 }
 
-// moveDir moves a folder server side
+// moveDir moves a folder server-side
 func (f *Fs) moveDir(ctx context.Context, id, leaf, directoryID string) (err error) {
 	// Move the object
 	opts := rest.Opts{
@@ -970,7 +970,7 @@ func (f *Fs) moveDir(ctx context.Context, id, leaf, directoryID string) (err err
 	})
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -1006,7 +1006,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //

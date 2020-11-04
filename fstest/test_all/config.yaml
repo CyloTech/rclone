@@ -20,6 +20,7 @@ backends:
  - backend:  "b2"
    remote:   "TestB2:"
    fastlist: true
+   listretries: 5
  - backend:  "crypt"
    remote:   "TestCryptDrive:"
    fastlist: true
@@ -71,6 +72,10 @@ backends:
    remote:   "TestChunkerChunk50bSHA1HashS3:"
    fastlist: true
    maxfile:  1k
+ - backend:  "chunker"
+   remote:   "TestChunkerOverCrypt:"
+   fastlist: true
+   maxfile:  6k
  - backend:  "chunker"
    remote:   "TestChunkerChunk50bMD5QuickS3:"
    fastlist: true
@@ -133,18 +138,21 @@ backends:
      - TestIntegration/FsMkdir/FsEncoding/leading_HT
      - TestIntegration/FsMkdir/FsEncoding/leading_VT
      - TestIntegration/FsMkdir/FsPutFiles/FsPutStream/0
- - backend:  "s3"
-   remote:   "TestS3DigitalOcean:"
-   fastlist: true
-   ignore:
-     - TestIntegration/FsMkdir/FsPutFiles/FsCopy
-     - TestIntegration/FsMkdir/FsPutFiles/SetTier
- - backend:  "s3"
-   remote:   "TestS3Ceph:"
-   fastlist: true
-   ignore:
-     - TestIntegration/FsMkdir/FsPutFiles/FsCopy
-     - TestIntegration/FsMkdir/FsPutFiles/SetTier
+ # Disabled due to excessive rate limiting at DO which cause the tests never to pass
+ # This hits the rate limit as documented here: https://www.digitalocean.com/docs/spaces/#limits
+ # 2 COPYs per 5 minutes on any individual object in a Space
+ # - backend:  "s3"
+ #   remote:   "TestS3DigitalOcean:"
+ #   fastlist: true
+ #   ignore:
+ #     - TestIntegration/FsMkdir/FsPutFiles/FsCopy
+ #     - TestIntegration/FsMkdir/FsPutFiles/SetTier
+ # - backend:  "s3"
+ #   remote:   "TestS3Ceph:"
+ #   fastlist: true
+ #   ignore:
+ #     - TestIntegration/FsMkdir/FsPutFiles/FsCopy
+ #     - TestIntegration/FsMkdir/FsPutFiles/SetTier
  - backend:  "s3"
    remote:   "TestS3Alibaba:"
    fastlist: true
@@ -165,11 +173,11 @@ backends:
  - backend:  "swift"
    remote:   "TestSwift:"
    fastlist: true
- - backend:  "swift"
-   remote:   "TestSwiftCeph:"
-   fastlist: true
-   ignore:
-     - TestIntegration/FsMkdir/FsPutFiles/FsCopy
+ # - backend:  "swift"
+ #   remote:   "TestSwiftCeph:"
+ #   fastlist: true
+ #   ignore:
+ #     - TestIntegration/FsMkdir/FsPutFiles/FsCopy
  - backend:  "yandex"
    remote:   "TestYandex:"
    fastlist: false
@@ -201,6 +209,8 @@ backends:
  - backend:  "fichier"
    remote:   "TestFichier:"
    fastlist: false
+   tests:
+     - backend
  - backend:  "qingstor"
    remote:   "TestQingStor:"
    fastlist: false

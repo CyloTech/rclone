@@ -4,7 +4,7 @@ package hubic
 
 // This uses the normal swift mechanism to update the credentials and
 // ignores the expires field returned by the Hubic API.  This may need
-// to be revisted after some actual experience.
+// to be revisited after some actual experience.
 
 import (
 	"context"
@@ -20,7 +20,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rclone/rclone/backend/swift"
 	"github.com/rclone/rclone/fs"
-	"github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/rclone/rclone/fs/config/obscure"
@@ -63,13 +62,7 @@ func init() {
 				log.Fatalf("Failed to configure token: %v", err)
 			}
 		},
-		Options: append([]fs.Option{{
-			Name: config.ConfigClientID,
-			Help: "Hubic Client Id\nLeave blank normally.",
-		}, {
-			Name: config.ConfigClientSecret,
-			Help: "Hubic Client Secret\nLeave blank normally.",
-		}}, swift.SharedOptions...),
+		Options: append(oauthutil.SharedOptions, swift.SharedOptions...),
 	})
 }
 
@@ -78,7 +71,7 @@ func init() {
 type credentials struct {
 	Token    string `json:"token"`    // OpenStack token
 	Endpoint string `json:"endpoint"` // OpenStack endpoint
-	Expires  string `json:"expires"`  // Expires date - eg "2015-11-09T14:24:56+01:00"
+	Expires  string `json:"expires"`  // Expires date - e.g. "2015-11-09T14:24:56+01:00"
 }
 
 // Fs represents a remote hubic

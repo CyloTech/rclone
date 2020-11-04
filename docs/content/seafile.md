@@ -16,7 +16,7 @@ This is a backend for the [Seafile](https://www.seafile.com/) storage service:
 
 There are two distinct modes you can setup your remote:
 - you point your remote to the **root of the server**, meaning you don't specify a library during the configuration:
-Paths are specified as `remote:library`. You may put subdirectories in too, eg `remote:library/path/to/dir`.
+Paths are specified as `remote:library`. You may put subdirectories in too, e.g. `remote:library/path/to/dir`.
 - you point your remote to a specific library during the configuration:
 Paths are specified as `remote:path/to/dir`. **This is the recommended mode when using encrypted libraries**. (_This mode is possibly slightly faster than the root mode_)
 
@@ -294,6 +294,8 @@ User name (usually email address)
 
 Password
 
+**NB** Input to this must be obscured - see [rclone obscure](/commands/rclone_obscure/).
+
 - Config:      pass
 - Env Var:     RCLONE_SEAFILE_PASS
 - Type:        string
@@ -320,6 +322,8 @@ Name of the library. Leave blank to access all non-encrypted libraries.
 #### --seafile-library-key
 
 Library password (for encrypted libraries only). Leave blank if you pass it through the command line.
+
+**NB** Input to this must be obscured - see [rclone obscure](/commands/rclone_obscure/).
 
 - Config:      library_key
 - Env Var:     RCLONE_SEAFILE_LIBRARY_KEY

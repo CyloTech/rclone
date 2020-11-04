@@ -51,7 +51,7 @@ default for this is 5GB which is its maximum value.`,
 	Name: "no_chunk",
 	Help: `Don't chunk files during streaming upload.
 
-When doing streaming uploads (eg using rcat or mount) setting this
+When doing streaming uploads (e.g. using rcat or mount) setting this
 flag will cause the swift backend to not upload chunked files.
 
 This will limit the maximum upload size to 5GB. However non chunked
@@ -272,7 +272,7 @@ func (f *Fs) Features() *fs.Features {
 
 // retryErrorCodes is a slice of error codes that we will retry
 var retryErrorCodes = []int{
-	401, // Unauthorized (eg "Token has expired")
+	401, // Unauthorized (e.g. "Token has expired")
 	408, // Request Timeout
 	409, // Conflict - various states that could be resolved on a retry
 	429, // Rate exceeded.
@@ -871,7 +871,7 @@ func (f *Fs) Purge(ctx context.Context, dir string) error {
 	return f.Rmdir(ctx, dir)
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -1335,7 +1335,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		// object has been safely uploaded
 		o.lastModified = modTime
 		o.size = size
-		o.md5 = rxHeaders["ETag"]
+		o.md5 = rxHeaders["Etag"]
 		o.contentType = contentType
 		o.headers = headers
 		if inCount != nil {

@@ -262,7 +262,7 @@ func TestSyncEmptyDirectories(t *testing.T) {
 	)
 }
 
-// Test a server side copy if possible, or the backup path if not
+// Test a server-side copy if possible, or the backup path if not
 func TestServerSideCopy(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
@@ -1207,7 +1207,7 @@ func toyFileTransfers(r *fstest.Run) int64 {
 	return int64(transfers)
 }
 
-// Test a server side move if possible, or the backup path if not
+// Test a server-side move if possible, or the backup path if not
 func testServerSideMove(t *testing.T, r *fstest.Run, withFilter, testDeleteEmptyDirs bool) {
 	FremoteMove, _, finaliseMove, err := fstest.RandomRemote()
 	require.NoError(t, err)
@@ -1231,7 +1231,7 @@ func testServerSideMove(t *testing.T, r *fstest.Run, withFilter, testDeleteEmpty
 	file3 := r.WriteObjectTo(context.Background(), FremoteMove, "potato3", "------------------------------------------------------------", t1, false)
 	fstest.CheckItems(t, FremoteMove, file2, file3)
 
-	// Do server side move
+	// Do server-side move
 	accounting.GlobalStats().ResetCounters()
 	err = MoveDir(context.Background(), FremoteMove, r.Fremote, testDeleteEmptyDirs, false)
 	require.NoError(t, err)
@@ -1322,14 +1322,14 @@ func TestMoveWithoutDeleteEmptySrcDirs(t *testing.T) {
 	fstest.CheckItems(t, r.Fremote, file1, file2)
 }
 
-// Test a server side move if possible, or the backup path if not
+// Test a server-side move if possible, or the backup path if not
 func TestServerSideMove(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 	testServerSideMove(t, r, false, false)
 }
 
-// Test a server side move if possible, or the backup path if not
+// Test a server-side move if possible, or the backup path if not
 func TestServerSideMoveWithFilter(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
@@ -1342,14 +1342,14 @@ func TestServerSideMoveWithFilter(t *testing.T) {
 	testServerSideMove(t, r, true, false)
 }
 
-// Test a server side move if possible
+// Test a server-side move if possible
 func TestServerSideMoveDeleteEmptySourceDirs(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 	testServerSideMove(t, r, false, true)
 }
 
-// Test a server side move with overlap
+// Test a server-side move with overlap
 func TestServerSideMoveOverlap(t *testing.T) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
@@ -1492,7 +1492,7 @@ func TestSyncCopyDest(t *testing.T) {
 	defer r.Finalise()
 
 	if r.Fremote.Features().Copy == nil {
-		t.Skip("Skipping test as remote does not support server side copy")
+		t.Skip("Skipping test as remote does not support server-side copy")
 	}
 
 	fs.Config.CopyDest = r.FremoteName + "/CopyDest"
@@ -1590,16 +1590,32 @@ func TestSyncCopyDest(t *testing.T) {
 }
 
 // Test with BackupDir set
-func testSyncBackupDir(t *testing.T, suffix string, suffixKeepExtension bool) {
+func testSyncBackupDir(t *testing.T, backupDir string, suffix string, suffixKeepExtension bool) {
 	r := fstest.NewRun(t)
 	defer r.Finalise()
 
 	if !operations.CanServerSideMove(r.Fremote) {
-		t.Skip("Skipping test as remote does not support server side move")
+		t.Skip("Skipping test as remote does not support server-side move")
 	}
 	r.Mkdir(context.Background(), r.Fremote)
 
-	fs.Config.BackupDir = r.FremoteName + "/backup"
+	if backupDir != "" {
+		fs.Config.BackupDir = r.FremoteName + "/" + backupDir
+		backupDir += "/"
+	} else {
+		fs.Config.BackupDir = ""
+		backupDir = "dst/"
+		// Exclude the suffix from the sync otherwise the sync
+		// deletes the old backup files
+		flt, err := filter.NewFilter(nil)
+		require.NoError(t, err)
+		require.NoError(t, flt.AddRule("- *"+suffix))
+		oldFlt := filter.Active
+		filter.Active = flt
+		defer func() {
+			filter.Active = oldFlt
+		}()
+	}
 	fs.Config.Suffix = suffix
 	fs.Config.SuffixKeepExtension = suffixKeepExtension
 	defer func() {
@@ -1627,14 +1643,14 @@ func testSyncBackupDir(t *testing.T, suffix string, suffixKeepExtension bool) {
 	require.NoError(t, err)
 
 	// one should be moved to the backup dir and the new one installed
-	file1.Path = "backup/one" + suffix
+	file1.Path = backupDir + "one" + suffix
 	file1a.Path = "dst/one"
 	// two should be unchanged
 	// three should be moved to the backup dir
 	if suffixKeepExtension {
-		file3.Path = "backup/three" + suffix + ".txt"
+		file3.Path = backupDir + "three" + suffix + ".txt"
 	} else {
-		file3.Path = "backup/three.txt" + suffix
+		file3.Path = backupDir + "three.txt" + suffix
 	}
 
 	fstest.CheckItems(t, r.Fremote, file1, file2, file3, file1a)
@@ -1652,22 +1668,29 @@ func testSyncBackupDir(t *testing.T, suffix string, suffixKeepExtension bool) {
 	require.NoError(t, err)
 
 	// one should be moved to the backup dir and the new one installed
-	file1a.Path = "backup/one" + suffix
+	file1a.Path = backupDir + "one" + suffix
 	file1b.Path = "dst/one"
 	// two should be unchanged
 	// three should be moved to the backup dir
 	if suffixKeepExtension {
-		file3a.Path = "backup/three" + suffix + ".txt"
+		file3a.Path = backupDir + "three" + suffix + ".txt"
 	} else {
-		file3a.Path = "backup/three.txt" + suffix
+		file3a.Path = backupDir + "three.txt" + suffix
 	}
 
 	fstest.CheckItems(t, r.Fremote, file1b, file2, file3a, file1a)
 }
-func TestSyncBackupDir(t *testing.T)           { testSyncBackupDir(t, "", false) }
-func TestSyncBackupDirWithSuffix(t *testing.T) { testSyncBackupDir(t, ".bak", false) }
+func TestSyncBackupDir(t *testing.T) {
+	testSyncBackupDir(t, "backup", "", false)
+}
+func TestSyncBackupDirWithSuffix(t *testing.T) {
+	testSyncBackupDir(t, "backup", ".bak", false)
+}
 func TestSyncBackupDirWithSuffixKeepExtension(t *testing.T) {
-	testSyncBackupDir(t, "-2019-01-01", true)
+	testSyncBackupDir(t, "backup", "-2019-01-01", true)
+}
+func TestSyncBackupDirSuffixOnly(t *testing.T) {
+	testSyncBackupDir(t, "", ".bak", false)
 }
 
 // Test with Suffix set
@@ -1676,7 +1699,7 @@ func testSyncSuffix(t *testing.T, suffix string, suffixKeepExtension bool) {
 	defer r.Finalise()
 
 	if !operations.CanServerSideMove(r.Fremote) {
-		t.Skip("Skipping test as remote does not support server side move")
+		t.Skip("Skipping test as remote does not support server-side move")
 	}
 	r.Mkdir(context.Background(), r.Fremote)
 
@@ -1851,38 +1874,51 @@ func TestSyncIgnoreCase(t *testing.T) {
 	fstest.CheckItems(t, r.Fremote, file2)
 }
 
-// Test that aborting on max upload works
-func TestAbort(t *testing.T) {
-	r := fstest.NewRun(t)
-	defer r.Finalise()
-
-	if r.Fremote.Name() != "local" {
-		t.Skip("This test only runs on local")
-	}
-
+// Test that aborting on --max-transfer works
+func TestMaxTransfer(t *testing.T) {
 	oldMaxTransfer := fs.Config.MaxTransfer
 	oldTransfers := fs.Config.Transfers
 	oldCheckers := fs.Config.Checkers
+	oldCutoff := fs.Config.CutoffMode
 	fs.Config.MaxTransfer = 3 * 1024
 	fs.Config.Transfers = 1
 	fs.Config.Checkers = 1
+	fs.Config.CutoffMode = fs.CutoffModeHard
 	defer func() {
 		fs.Config.MaxTransfer = oldMaxTransfer
 		fs.Config.Transfers = oldTransfers
 		fs.Config.Checkers = oldCheckers
+		fs.Config.CutoffMode = oldCutoff
 	}()
 
-	// Create file on source
-	file1 := r.WriteFile("file1", string(make([]byte, 5*1024)), t1)
-	file2 := r.WriteFile("file2", string(make([]byte, 2*1024)), t1)
-	file3 := r.WriteFile("file3", string(make([]byte, 3*1024)), t1)
-	fstest.CheckItems(t, r.Flocal, file1, file2, file3)
-	fstest.CheckItems(t, r.Fremote)
+	test := func(t *testing.T, cutoff fs.CutoffMode) {
+		r := fstest.NewRun(t)
+		defer r.Finalise()
+		fs.Config.CutoffMode = cutoff
 
-	accounting.GlobalStats().ResetCounters()
+		if r.Fremote.Name() != "local" {
+			t.Skip("This test only runs on local")
+		}
 
-	err := Sync(context.Background(), r.Fremote, r.Flocal, false)
-	expectedErr := fserrors.FsError(accounting.ErrorMaxTransferLimitReachedFatal)
-	fserrors.Count(expectedErr)
-	assert.Equal(t, expectedErr, err)
+		// Create file on source
+		file1 := r.WriteFile("file1", string(make([]byte, 5*1024)), t1)
+		file2 := r.WriteFile("file2", string(make([]byte, 2*1024)), t1)
+		file3 := r.WriteFile("file3", string(make([]byte, 3*1024)), t1)
+		fstest.CheckItems(t, r.Flocal, file1, file2, file3)
+		fstest.CheckItems(t, r.Fremote)
+
+		accounting.GlobalStats().ResetCounters()
+
+		err := Sync(context.Background(), r.Fremote, r.Flocal, false)
+		expectedErr := fserrors.FsError(accounting.ErrorMaxTransferLimitReachedFatal)
+		if cutoff != fs.CutoffModeHard {
+			expectedErr = accounting.ErrorMaxTransferLimitReachedGraceful
+		}
+		fserrors.Count(expectedErr)
+		assert.Equal(t, expectedErr, err)
+	}
+
+	t.Run("Hard", func(t *testing.T) { test(t, fs.CutoffModeHard) })
+	t.Run("Soft", func(t *testing.T) { test(t, fs.CutoffModeSoft) })
+	t.Run("Cautious", func(t *testing.T) { test(t, fs.CutoffModeCautious) })
 }

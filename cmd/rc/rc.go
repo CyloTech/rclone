@@ -34,7 +34,7 @@ var (
 func init() {
 	cmd.Root.AddCommand(commandDefinition)
 	cmdFlags := commandDefinition.Flags()
-	flags.BoolVarP(cmdFlags, &noOutput, "no-output", "", noOutput, "If set don't output the JSON result.")
+	flags.BoolVarP(cmdFlags, &noOutput, "no-output", "", noOutput, "If set, don't output the JSON result.")
 	flags.StringVarP(cmdFlags, &url, "url", "", url, "URL to connect to rclone remote control.")
 	flags.StringVarP(cmdFlags, &jsonInput, "json", "", jsonInput, "Input JSON - use instead of key=value args.")
 	flags.StringVarP(cmdFlags, &authUser, "user", "", "", "Username to use to rclone remote control.")
@@ -92,7 +92,7 @@ Will place this in the "arg" value
 
 Use --loopback to connect to the rclone instance running "rclone rc".
 This is very useful for testing commands without having to run an
-rclone rc server, eg:
+rclone rc server, e.g.:
 
     rclone rc --loopback operations/about fs=/
 

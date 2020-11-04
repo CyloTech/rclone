@@ -103,13 +103,7 @@ func init() {
 				}
 			}
 		},
-		Options: []fs.Option{{
-			Name: config.ConfigClientID,
-			Help: "Box App Client Id.\nLeave blank normally.",
-		}, {
-			Name: config.ConfigClientSecret,
-			Help: "Box App Client Secret\nLeave blank normally.",
-		}, {
+		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name:     "root_folder_id",
 			Help:     "Fill in for rclone to use a non root folder as its starting point.",
 			Default:  "0",
@@ -155,7 +149,7 @@ func init() {
 				encoder.EncodeBackSlash |
 				encoder.EncodeRightSpace |
 				encoder.EncodeInvalidUtf8),
-		}},
+		}}...),
 	})
 }
 
@@ -797,7 +791,7 @@ func (f *Fs) Precision() time.Duration {
 	return time.Second
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -915,7 +909,7 @@ func (f *Fs) About(ctx context.Context) (usage *fs.Usage, err error) {
 	return usage, nil
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -951,7 +945,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //
@@ -1019,7 +1013,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, 
 	return info.SharedLink.URL, err
 }
 
-// deletePermanently permenently deletes a trashed file
+// deletePermanently permanently deletes a trashed file
 func (f *Fs) deletePermanently(ctx context.Context, itemType, id string) error {
 	opts := rest.Opts{
 		Method:     "DELETE",

@@ -64,7 +64,7 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.BoolVarP(flagSet, &deleteDuring, "delete-during", "", false, "When synchronizing, delete files during transfer")
 	flags.BoolVarP(flagSet, &deleteAfter, "delete-after", "", false, "When synchronizing, delete files on destination after transferring (default)")
 	flags.Int64VarP(flagSet, &fs.Config.MaxDelete, "max-delete", "", -1, "When synchronizing, limit the number of deletes")
-	flags.BoolVarP(flagSet, &fs.Config.TrackRenames, "track-renames", "", fs.Config.TrackRenames, "When synchronizing, track file renames and do a server side move if possible")
+	flags.BoolVarP(flagSet, &fs.Config.TrackRenames, "track-renames", "", fs.Config.TrackRenames, "When synchronizing, track file renames and do a server-side move if possible")
 	flags.StringVarP(flagSet, &fs.Config.TrackRenamesStrategy, "track-renames-strategy", "", fs.Config.TrackRenamesStrategy, "Strategies to use when synchronizing using track-renames hash|modtime|leaf")
 	flags.IntVarP(flagSet, &fs.Config.LowLevelRetries, "low-level-retries", "", fs.Config.LowLevelRetries, "Number of low level retries to do.")
 	flags.BoolVarP(flagSet, &fs.Config.UpdateOlder, "update", "u", fs.Config.UpdateOlder, "Skip files that are newer on the destination.")
@@ -110,6 +110,7 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.StringVarP(flagSet, &fs.Config.StatsOneLineDateFormat, "stats-one-line-date-format", "", fs.Config.StatsOneLineDateFormat, "Enables --stats-one-line-date and uses custom formatted date. Enclose date string in double quotes (\"). See https://golang.org/pkg/time/#Time.Format")
 	flags.BoolVarP(flagSet, &fs.Config.ErrorOnNoTransfer, "error-on-no-transfer", "", fs.Config.ErrorOnNoTransfer, "Sets exit code 9 if no files are transferred, useful in scripts")
 	flags.BoolVarP(flagSet, &fs.Config.Progress, "progress", "P", fs.Config.Progress, "Show progress during transfer.")
+	flags.BoolVarP(flagSet, &fs.Config.ProgressTerminalTitle, "progress-terminal-title", "", fs.Config.ProgressTerminalTitle, "Show progress on the terminal title. Requires -P/--progress.")
 	flags.BoolVarP(flagSet, &fs.Config.Cookie, "use-cookies", "", fs.Config.Cookie, "Enable session cookiejar.")
 	flags.BoolVarP(flagSet, &fs.Config.UseMmap, "use-mmap", "", fs.Config.UseMmap, "Use mmap allocator (see docs).")
 	flags.StringVarP(flagSet, &fs.Config.CaCert, "ca-cert", "", fs.Config.CaCert, "CA certificate used to verify servers")
@@ -118,11 +119,12 @@ func AddFlags(flagSet *pflag.FlagSet) {
 	flags.FVarP(flagSet, &fs.Config.MultiThreadCutoff, "multi-thread-cutoff", "", "Use multi-thread downloads for files above this size.")
 	flags.IntVarP(flagSet, &fs.Config.MultiThreadStreams, "multi-thread-streams", "", fs.Config.MultiThreadStreams, "Max number of streams to use for multi-thread downloads.")
 	flags.BoolVarP(flagSet, &fs.Config.UseJSONLog, "use-json-log", "", fs.Config.UseJSONLog, "Use json log format.")
-	flags.StringVarP(flagSet, &fs.Config.OrderBy, "order-by", "", fs.Config.OrderBy, "Instructions on how to order the transfers, eg 'size,descending'")
+	flags.StringVarP(flagSet, &fs.Config.OrderBy, "order-by", "", fs.Config.OrderBy, "Instructions on how to order the transfers, e.g. 'size,descending'")
 	flags.StringArrayVarP(flagSet, &uploadHeaders, "header-upload", "", nil, "Set HTTP header for upload transactions")
 	flags.StringArrayVarP(flagSet, &downloadHeaders, "header-download", "", nil, "Set HTTP header for download transactions")
 	flags.StringArrayVarP(flagSet, &headers, "header", "", nil, "Set HTTP header for all transactions")
 	flags.BoolVarP(flagSet, &fs.Config.RefreshTimes, "refresh-times", "", fs.Config.RefreshTimes, "Refresh the modtime of remote files.")
+	flags.BoolVarP(flagSet, &fs.Config.LogSystemdSupport, "log-systemd", "", fs.Config.LogSystemdSupport, "Activate systemd integration for the logger.")
 }
 
 // ParseHeaders converts the strings passed in via the header flags into HTTPOptions

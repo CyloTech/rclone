@@ -103,13 +103,7 @@ func init() {
 				log.Fatalf("Failed to configure token: %v", err)
 			}
 		},
-		Options: []fs.Option{{
-			Name: config.ConfigClientID,
-			Help: "Pcloud App Client Id\nLeave blank normally.",
-		}, {
-			Name: config.ConfigClientSecret,
-			Help: "Pcloud App Client Secret\nLeave blank normally.",
-		}, {
+		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name:     config.ConfigEncoding,
 			Help:     config.ConfigEncodingHelp,
 			Advanced: true,
@@ -128,10 +122,20 @@ func init() {
 			Name: "hostname",
 			Help: `Hostname to connect to.
 
-This is normally set when rclone initially does the oauth connection.`,
+This is normally set when rclone initially does the oauth connection,
+however you will need to set it by hand if you are using remote config
+with rclone authorize.
+`,
 			Default:  defaultHostname,
 			Advanced: true,
-		}},
+			Examples: []fs.OptionExample{{
+				Value: defaultHostname,
+				Help:  "Original/US region",
+			}, {
+				Value: "eapi.pcloud.com",
+				Help:  "EU region",
+			}},
+		}}...),
 	})
 }
 
@@ -215,7 +219,7 @@ func shouldRetry(resp *http.Response, err error) (bool, error) {
 	// Check if it is an api.Error
 	if apiErr, ok := err.(*api.Error); ok {
 		// See https://docs.pcloud.com/errors/ for error treatment
-		// Errors are classified as 1xxx, 2xxx etc
+		// Errors are classified as 1xxx, 2xxx, etc.
 		switch apiErr.Result / 1000 {
 		case 4: // 4xxx: rate limiting
 			doRetry = true
@@ -618,7 +622,7 @@ func (f *Fs) Precision() time.Duration {
 	return time.Second
 }
 
-// Copy src to this remote using server side copy operations.
+// Copy src to this remote using server-side copy operations.
 //
 // This is stored with the remote path given
 //
@@ -701,7 +705,7 @@ func (f *Fs) CleanUp(ctx context.Context) error {
 	})
 }
 
-// Move src to this remote using server side move operations.
+// Move src to this remote using server-side move operations.
 //
 // This is stored with the remote path given
 //
@@ -751,7 +755,7 @@ func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object,
 }
 
 // DirMove moves src, srcRemote to this remote at dstRemote
-// using server side move operations.
+// using server-side move operations.
 //
 // Will only be called if src.Fs().Name() == f.Name()
 //
@@ -820,14 +824,19 @@ func (f *Fs) linkDir(ctx context.Context, dirID string, expire fs.Duration) (str
 }
 
 func (f *Fs) linkFile(ctx context.Context, path string, expire fs.Duration) (string, error) {
+	obj, err := f.NewObject(ctx, path)
+	if err != nil {
+		return "", err
+	}
+	o := obj.(*Object)
 	opts := rest.Opts{
 		Method:     "POST",
 		Path:       "/getfilepublink",
 		Parameters: url.Values{},
 	}
 	var result api.PubLinkResult
-	opts.Parameters.Set("path", path)
-	err := f.pacer.Call(func() (bool, error) {
+	opts.Parameters.Set("fileid", fileIDtoNumber(o.id))
+	err = f.pacer.Call(func() (bool, error) {
 		resp, err := f.srv.CallJSON(ctx, &opts, nil, &result)
 		err = result.Error.Update(err)
 		return shouldRetry(resp, err)
@@ -840,11 +849,6 @@ func (f *Fs) linkFile(ctx context.Context, path string, expire fs.Duration) (str
 
 // PublicLink adds a "readable by anyone with link" permission on the given file or folder.
 func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, unlink bool) (string, error) {
-	err := f.dirCache.FindRoot(ctx, false)
-	if err != nil {
-		return "", err
-	}
-
 	dirID, err := f.dirCache.FindDir(ctx, remote, false)
 	if err == fs.ErrorDirNotFound {
 		return f.linkFile(ctx, remote, expire)
@@ -1121,7 +1125,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 
 	// Special treatment for a 0 length upload.  This doesn't work
 	// with PUT even with Content-Length set (by setting
-	// opts.Body=0), so upload it as a multpart form POST with
+	// opts.Body=0), so upload it as a multipart form POST with
 	// Content-Length set.
 	if size == 0 {
 		formReader, contentType, overhead, err := rest.MultipartUpload(in, opts.Parameters, "content", leaf)
