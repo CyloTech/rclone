@@ -2,6 +2,16 @@ module github.com/rclone/rclone
 
 go 1.14
 
+replace github.com/coreos/bbolt v1.3.5 => go.etcd.io/bbolt v1.3.5
+
+replace go.etcd.io/bbolt v1.3.5 => github.com/coreos/bbolt v1.3.5
+
+replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.1.0
+
+replace gopkg.in/fsnotify.v1 => github.com/fsnotify/fsnotify v1.4.9
+
+replace github.com/lyft/protoc-gen-validate => github.com/envoyproxy/protoc-gen-validate v0.4.0
+
 require (
 	bazil.org/fuse v0.0.0-20200407214033-5883e5a4b512
 	cloud.google.com/go v0.59.0 // indirect
