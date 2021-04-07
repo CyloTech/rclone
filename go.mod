@@ -2,16 +2,6 @@ module github.com/rclone/rclone
 
 go 1.14
 
-replace github.com/coreos/bbolt v1.3.5 => go.etcd.io/bbolt v1.3.5
-
-replace go.etcd.io/bbolt v1.3.5 => github.com/coreos/bbolt v1.3.5
-
-replace github.com/coreos/go-systemd => github.com/coreos/go-systemd/v22 v22.1.0
-
-replace gopkg.in/fsnotify.v1 => github.com/fsnotify/fsnotify v1.4.9
-
-replace github.com/lyft/protoc-gen-validate => github.com/envoyproxy/protoc-gen-validate v0.4.0
-
 require (
 	bazil.org/fuse v0.0.0-20200524192727-fb710f7dfd05
 	cloud.google.com/go v0.70.0 // indirect
@@ -30,6 +20,7 @@ require (
 	github.com/coreos/go-semver v0.3.0
 	github.com/dropbox/dropbox-sdk-go-unofficial v5.6.0+incompatible
 	github.com/gogo/protobuf v1.3.1 // indirect
+	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/hanwen/go-fuse/v2 v2.0.3
 	github.com/iguanesolutions/go-systemd/v5 v5.0.0
@@ -66,6 +57,7 @@ require (
 	go.uber.org/zap v1.16.0 // indirect
 	goftp.io/server v0.4.0
 	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
+	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/net v0.0.0-20201029055024-942e2f445f3c
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	golang.org/x/sync v0.0.0-20201020160332-67f06af15bc9
@@ -76,6 +68,7 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20201028140639-c77dae4b0522 // indirect
 	google.golang.org/grpc v1.33.1 // indirect
+	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 	storj.io/common v0.0.0-20201027143432-3718579e12bf // indirect
