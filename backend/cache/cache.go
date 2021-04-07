@@ -340,7 +340,7 @@ func parseRootPath(path string) (string, error) {
 }
 
 // NewFs constructs an Fs from the path, container:path
-func NewFs(name, rootPath string, m configmap.Mapper) (fs.Fs, error) {
+func NewFs(ctx context.Context, name, rootPath string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
 	err := configstruct.Set(m, opt)
@@ -362,7 +362,7 @@ func NewFs(name, rootPath string, m configmap.Mapper) (fs.Fs, error) {
 	}
 
 	remotePath := fspath.JoinRootPath(opt.Remote, rootPath)
-	wrappedFs, wrapErr := cache.Get(remotePath)
+	wrappedFs, wrapErr := cache.Get(ctx, remotePath)
 	if wrapErr != nil && wrapErr != fs.ErrorIsFile {
 		return nil, errors.Wrapf(wrapErr, "failed to make remote %q to wrap", remotePath)
 	}
@@ -479,7 +479,7 @@ func NewFs(name, rootPath string, m configmap.Mapper) (fs.Fs, error) {
 			return nil, errors.Wrapf(err, "failed to create cache directory %v", f.opt.TempWritePath)
 		}
 		f.opt.TempWritePath = filepath.ToSlash(f.opt.TempWritePath)
-		f.tempFs, err = cache.Get(f.opt.TempWritePath)
+		f.tempFs, err = cache.Get(ctx, f.opt.TempWritePath)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to create temp fs: %v", err)
 		}
@@ -506,13 +506,13 @@ func NewFs(name, rootPath string, m configmap.Mapper) (fs.Fs, error) {
 	if doChangeNotify := wrappedFs.Features().ChangeNotify; doChangeNotify != nil {
 		pollInterval := make(chan time.Duration, 1)
 		pollInterval <- time.Duration(f.opt.ChunkCleanInterval)
-		doChangeNotify(context.Background(), f.receiveChangeNotify, pollInterval)
+		doChangeNotify(ctx, f.receiveChangeNotify, pollInterval)
 	}
 
 	f.features = (&fs.Features{
 		CanHaveEmptyDirectories: true,
 		DuplicateFiles:          false, // storage doesn't permit this
-	}).Fill(f).Mask(wrappedFs).WrapsFs(f, wrappedFs)
+	}).Fill(ctx, f).Mask(ctx, wrappedFs).WrapsFs(f, wrappedFs)
 	// override only those features that use a temp fs and it doesn't support them
 	//f.features.ChangeNotify = f.ChangeNotify
 	if f.opt.TempWritePath != "" {
@@ -1895,6 +1895,16 @@ func (f *Fs) Disconnect(ctx context.Context) error {
 	return do(ctx)
 }
 
+// Shutdown the backend, closing any background tasks and any
+// cached connections.
+func (f *Fs) Shutdown(ctx context.Context) error {
+	do := f.Fs.Features().Shutdown
+	if do == nil {
+		return nil
+	}
+	return do(ctx)
+}
+
 var commandHelp = []fs.CommandHelp{
 	{
 		Name:  "stats",
@@ -1939,4 +1949,5 @@ var (
 	_ fs.Disconnecter   = (*Fs)(nil)
 	_ fs.Commander      = (*Fs)(nil)
 	_ fs.MergeDirser    = (*Fs)(nil)
+	_ fs.Shutdowner     = (*Fs)(nil)
 )

@@ -36,7 +36,7 @@ func newRWFileHandle(d *Dir, f *File, flags int) (fh *RWFileHandle, err error) {
 	// get an item to represent this from the cache
 	item := d.vfs.cache.Item(f.Path())
 
-	exists := f.exists() || item.Exists()
+	exists := f.exists() || (item.Exists() && !item.WrittenBack())
 
 	// if O_CREATE and O_EXCL are set and if path already exists, then return EEXIST
 	if flags&(os.O_CREATE|os.O_EXCL) == os.O_CREATE|os.O_EXCL && exists {
@@ -158,6 +158,9 @@ func (fh *RWFileHandle) close() (err error) {
 	if fh.opened {
 		err = fh.item.Close(fh.file.setObject)
 		fh.opened = false
+	} else {
+		// apply any pending mod times if any
+		_ = fh.file.applyPendingModTime()
 	}
 
 	if !fh.readOnly() {

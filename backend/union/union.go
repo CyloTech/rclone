@@ -754,10 +754,24 @@ func (f *Fs) mergeDirEntries(entriesList [][]upstream.Entry) (fs.DirEntries, err
 	return entries, nil
 }
 
+// Shutdown the backend, closing any background tasks and any
+// cached connections.
+func (f *Fs) Shutdown(ctx context.Context) error {
+	errs := Errors(make([]error, len(f.upstreams)))
+	multithread(len(f.upstreams), func(i int) {
+		u := f.upstreams[i]
+		if do := u.Features().Shutdown; do != nil {
+			err := do(ctx)
+			errs[i] = errors.Wrap(err, u.Name())
+		}
+	})
+	return errs.Err()
+}
+
 // NewFs constructs an Fs from the path.
 //
 // The returned Fs is the actual Fs, referenced by remote in the config
-func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
 	err := configstruct.Set(m, opt)
@@ -787,7 +801,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	errs := Errors(make([]error, len(opt.Upstreams)))
 	multithread(len(opt.Upstreams), func(i int) {
 		u := opt.Upstreams[i]
-		upstreams[i], errs[i] = upstream.New(u, root, time.Duration(opt.CacheTime)*time.Second)
+		upstreams[i], errs[i] = upstream.New(ctx, u, root, time.Duration(opt.CacheTime)*time.Second)
 	})
 	var usedUpstreams []*upstream.Fs
 	var fserr error
@@ -833,9 +847,9 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		BucketBased:             true,
 		SetTier:                 true,
 		GetTier:                 true,
-	}).Fill(f)
+	}).Fill(ctx, f)
 	for _, f := range upstreams {
-		features = features.Mask(f) // Mask all upstream fs
+		features = features.Mask(ctx, f) // Mask all upstream fs
 	}
 
 	// Enable ListR when upstreams either support ListR or is local
@@ -896,4 +910,5 @@ var (
 	_ fs.ChangeNotifier  = (*Fs)(nil)
 	_ fs.Abouter         = (*Fs)(nil)
 	_ fs.ListRer         = (*Fs)(nil)
+	_ fs.Shutdowner      = (*Fs)(nil)
 )

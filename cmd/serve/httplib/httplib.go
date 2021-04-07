@@ -379,8 +379,10 @@ func (s *Server) URL() string {
 		proto = "https"
 	}
 	addr := s.Opt.ListenAddr
-	if s.listener != nil {
-		// prefer actual listener address; required if using 0-port
+	// prefer actual listener address if using ":port" or "addr:0"
+	useActualAddress := addr == "" || addr[0] == ':' || addr[len(addr)-1] == ':' || strings.HasSuffix(addr, ":0")
+	if s.listener != nil && useActualAddress {
+		// use actual listener address; required if using 0-port
 		// (i.e. port assigned by operating system)
 		addr = s.listener.Addr().String()
 	}
@@ -402,6 +404,11 @@ func (s *Server) Path(w http.ResponseWriter, r *http.Request) (Path string, ok b
 		return Path, true
 	}
 	if !strings.HasPrefix(Path, s.Opt.BaseURL+"/") {
+		// Send a redirect if the BaseURL was requested without a /
+		if Path == s.Opt.BaseURL {
+			http.Redirect(w, r, s.Opt.BaseURL+"/", http.StatusPermanentRedirect)
+			return Path, false
+		}
 		http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
 		return Path, false
 	}

@@ -234,7 +234,10 @@ var retryErrorCodes = []int{
 // shouldRetry returns a boolean as to whether this response and err
 // deserve to be retried. It returns the err as a convenience.
 // Retries password authorization (once) in a special case of access denied.
-func shouldRetry(res *http.Response, err error, f *Fs, opts *rest.Opts) (bool, error) {
+func shouldRetry(ctx context.Context, res *http.Response, err error, f *Fs, opts *rest.Opts) (bool, error) {
+	if fserrors.ContextError(ctx, &err) {
+		return false, err
+	}
 	if res != nil && res.StatusCode == 403 && f.opt.Password != "" && !f.passFailed {
 		reAuthErr := f.reAuthorize(opts, err)
 		return reAuthErr == nil, err // return an original error
@@ -273,6 +276,7 @@ type Fs struct {
 	name         string
 	root         string             // root path
 	opt          Options            // parsed options
+	ci           *fs.ConfigInfo     // global config
 	speedupGlobs []string           // list of file name patterns eligible for speedup
 	speedupAny   bool               // true if all file names are eligible for speedup
 	features     *fs.Features       // optional features
@@ -294,9 +298,8 @@ type Fs struct {
 }
 
 // NewFs constructs an Fs from the path, container:path
-func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// fs.Debugf(nil, ">>> NewFs %q %q", name, root)
-	ctx := context.Background() // Note: NewFs does not pass context!
 
 	// Parse config into Options struct
 	opt := new(Options)
@@ -313,10 +316,12 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// However the f.root string should not have leading or trailing slashes
 	root = strings.Trim(root, "/")
 
+	ci := fs.GetConfig(ctx)
 	f := &Fs{
 		name: name,
 		root: root,
 		opt:  *opt,
+		ci:   ci,
 		m:    m,
 	}
 
@@ -325,7 +330,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 	}
 	f.quirks.parseQuirks(opt.Quirks)
 
-	f.pacer = fs.NewPacer(pacer.NewDefault(pacer.MinSleep(minSleepPacer), pacer.MaxSleep(maxSleepPacer), pacer.DecayConstant(decayConstPacer)))
+	f.pacer = fs.NewPacer(ctx, pacer.NewDefault(pacer.MinSleep(minSleepPacer), pacer.MaxSleep(maxSleepPacer), pacer.DecayConstant(decayConstPacer)))
 
 	f.features = (&fs.Features{
 		CaseInsensitive:         true,
@@ -333,15 +338,15 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		// Can copy/move across mailru configs (almost, thus true here), but
 		// only when they share common account (this is checked in Copy/Move).
 		ServerSideAcrossConfigs: true,
-	}).Fill(f)
+	}).Fill(ctx, f)
 
 	// Override few config settings and create a client
-	clientConfig := *fs.Config
+	newCtx, clientConfig := fs.AddConfig(ctx)
 	if opt.UserAgent != "" {
 		clientConfig.UserAgent = opt.UserAgent
 	}
 	clientConfig.NoGzip = true // Mimic official client, skip sending "Accept-Encoding: gzip"
-	f.cli = fshttp.NewClient(&clientConfig)
+	f.cli = fshttp.NewClient(newCtx)
 
 	f.srv = rest.NewClient(f.cli)
 	f.srv.SetRoot(api.APIServerURL)
@@ -421,7 +426,7 @@ func (f *Fs) authorize(ctx context.Context, force bool) (err error) {
 
 	if err != nil || !tokenIsValid(t) {
 		fs.Infof(f, "Valid token not found, authorizing.")
-		ctx := oauthutil.Context(f.cli)
+		ctx := oauthutil.Context(ctx, f.cli)
 		t, err = oauthConfig.PasswordCredentialsToken(ctx, f.opt.Username, f.opt.Password)
 	}
 	if err == nil && !tokenIsValid(t) {
@@ -444,7 +449,7 @@ func (f *Fs) authorize(ctx context.Context, force bool) (err error) {
 	// crashing with panic `comparing uncomparable type map[string]interface{}`
 	// As a workaround, mimic oauth2.NewClient() wrapping token source in
 	// oauth2.ReuseTokenSource
-	_, ts, err := oauthutil.NewClientWithBaseClient(f.name, f.m, oauthConfig, f.cli)
+	_, ts, err := oauthutil.NewClientWithBaseClient(ctx, f.name, f.m, oauthConfig, f.cli)
 	if err == nil {
 		f.source = oauth2.ReuseTokenSource(nil, ts)
 	}
@@ -598,7 +603,7 @@ func (f *Fs) readItemMetaData(ctx context.Context, path string) (entry fs.DirEnt
 	var info api.ItemInfoResponse
 	err = f.pacer.Call(func() (bool, error) {
 		res, err := f.srv.CallJSON(ctx, &opts, nil, &info)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 
 	if err != nil {
@@ -693,7 +698,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		entries, err = f.listM1(ctx, f.absPath(dir), 0, maxInt32)
 	}
 
-	if err == nil && fs.Config.LogLevel >= fs.LogLevelDebug {
+	if err == nil && f.ci.LogLevel >= fs.LogLevelDebug {
 		names := []string{}
 		for _, entry := range entries {
 			names = append(names, entry.Remote())
@@ -734,7 +739,7 @@ func (f *Fs) listM1(ctx context.Context, dirPath string, offset int, limit int) 
 	)
 	err = f.pacer.Call(func() (bool, error) {
 		res, err = f.srv.CallJSON(ctx, &opts, nil, &info)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 
 	if err != nil {
@@ -798,7 +803,7 @@ func (f *Fs) listBin(ctx context.Context, dirPath string, depth int) (entries fs
 	var res *http.Response
 	err = f.pacer.Call(func() (bool, error) {
 		res, err = f.srv.Call(ctx, &opts)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 	if err != nil {
 		closeBody(res)
@@ -957,7 +962,7 @@ func (t *treeState) NextRecord() (fs.DirEntry, error) {
 		return nil, r.Error()
 	}
 
-	if fs.Config.LogLevel >= fs.LogLevelDebug {
+	if t.f.ci.LogLevel >= fs.LogLevelDebug {
 		ctime, _ := modTime.MarshalJSON()
 		fs.Debugf(t.f, "binDir %d.%d %q %q (%d) %s", t.level, itemType, t.currDir, name, size, ctime)
 	}
@@ -1071,7 +1076,7 @@ func (f *Fs) CreateDir(ctx context.Context, path string) error {
 	var res *http.Response
 	err = f.pacer.Call(func() (bool, error) {
 		res, err = f.srv.Call(ctx, &opts)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 	if err != nil {
 		closeBody(res)
@@ -1214,7 +1219,7 @@ func (f *Fs) delete(ctx context.Context, path string, hardDelete bool) error {
 	var response api.GenericResponse
 	err = f.pacer.Call(func() (bool, error) {
 		res, err := f.srv.CallJSON(ctx, &opts, nil, &response)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 
 	switch {
@@ -1286,7 +1291,7 @@ func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object,
 	var response api.GenericBodyResponse
 	err = f.pacer.Call(func() (bool, error) {
 		res, err := f.srv.CallJSON(ctx, &opts, nil, &response)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 
 	if err != nil {
@@ -1390,7 +1395,7 @@ func (f *Fs) moveItemBin(ctx context.Context, srcPath, dstPath, opName string) e
 	var res *http.Response
 	err = f.pacer.Call(func() (bool, error) {
 		res, err = f.srv.Call(ctx, &opts)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 	if err != nil {
 		closeBody(res)
@@ -1481,7 +1486,7 @@ func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, 
 	var response api.GenericBodyResponse
 	err = f.pacer.Call(func() (bool, error) {
 		res, err := f.srv.CallJSON(ctx, &opts, nil, &response)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 
 	if err == nil && response.Body != "" {
@@ -1522,7 +1527,7 @@ func (f *Fs) CleanUp(ctx context.Context) error {
 	var response api.CleanupResponse
 	err = f.pacer.Call(func() (bool, error) {
 		res, err := f.srv.CallJSON(ctx, &opts, nil, &response)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 	if err != nil {
 		return err
@@ -1555,7 +1560,7 @@ func (f *Fs) About(ctx context.Context) (*fs.Usage, error) {
 	var info api.UserInfoResponse
 	err = f.pacer.Call(func() (bool, error) {
 		res, err := f.srv.CallJSON(ctx, &opts, nil, &info)
-		return shouldRetry(res, err, f, &opts)
+		return shouldRetry(ctx, res, err, f, &opts)
 	})
 	if err != nil {
 		return nil, err
@@ -1662,7 +1667,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 
 	// Attempt to put by hash using a spool file
 	if trySpeedup {
-		tmpFs, err := fs.TemporaryLocalFs()
+		tmpFs, err := fs.TemporaryLocalFs(ctx)
 		if err != nil {
 			fs.Infof(tmpFs, "Failed to create spool FS: %v", err)
 		} else {
@@ -2074,7 +2079,7 @@ func (o *Object) addFileMetaData(ctx context.Context, overwrite bool) error {
 	var res *http.Response
 	err = o.fs.pacer.Call(func() (bool, error) {
 		res, err = o.fs.srv.Call(ctx, &opts)
-		return shouldRetry(res, err, o.fs, &opts)
+		return shouldRetry(ctx, res, err, o.fs, &opts)
 	})
 	if err != nil {
 		closeBody(res)
@@ -2170,7 +2175,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 		}
 		opts.RootURL = server
 		res, err = o.fs.srv.Call(ctx, &opts)
-		return shouldRetry(res, err, o.fs, &opts)
+		return shouldRetry(ctx, res, err, o.fs, &opts)
 	})
 	if err != nil {
 		if res != nil && res.Body != nil {
@@ -2377,7 +2382,7 @@ func (p *serverPool) addServer(url string, now time.Time) {
 	expiry := now.Add(p.expirySec * time.Second)
 
 	expiryStr := []byte("-")
-	if fs.Config.LogLevel >= fs.LogLevelInfo {
+	if p.fs.ci.LogLevel >= fs.LogLevelInfo {
 		expiryStr, _ = expiry.MarshalJSON()
 	}
 

@@ -359,17 +359,22 @@ func (item *Item) Truncate(size int64) (err error) {
 	return nil
 }
 
+// _stat gets the current stat of the backing file
+//
+// Call with mutex held
+func (item *Item) _stat() (fi os.FileInfo, err error) {
+	if item.fd != nil {
+		return item.fd.Stat()
+	}
+	osPath := item.c.toOSPath(item.name) // No locking in Cache
+	return os.Stat(osPath)
+}
+
 // _getSize gets the current size of the item and updates item.info.Size
 //
 // Call with mutex held
 func (item *Item) _getSize() (size int64, err error) {
-	var fi os.FileInfo
-	if item.fd != nil {
-		fi, err = item.fd.Stat()
-	} else {
-		osPath := item.c.toOSPath(item.name) // No locking in Cache
-		fi, err = os.Stat(osPath)
-	}
+	fi, err := item._stat()
 	if err != nil {
 		if os.IsNotExist(err) && item.o != nil {
 			size = item.o.Size()
@@ -491,7 +496,7 @@ func (item *Item) _createFile(osPath string) (err error) {
 // Open the local file from the object passed in.  Wraps open()
 // to provide recovery from out of space error.
 func (item *Item) Open(o fs.Object) (err error) {
-	for retries := 0; retries < fs.Config.LowLevelRetries; retries++ {
+	for retries := 0; retries < fs.GetConfig(context.TODO()).LowLevelRetries; retries++ {
 		item.preAccess()
 		err = item.open(o)
 		item.postAccess()
@@ -605,8 +610,9 @@ func (item *Item) _store(ctx context.Context, storeFn StoreFn) (err error) {
 		fs.Debugf(item.name, "vfs cache: writeback object to VFS layer")
 		// Write the object back to the VFS layer as last
 		// thing we do with mutex unlocked
+		o := item.o
 		item.mu.Unlock()
-		storeFn(item.o)
+		storeFn(o)
 		item.mu.Lock()
 	}
 	return nil
@@ -806,6 +812,13 @@ func (item *Item) _checkObject(o fs.Object) error {
 	}
 
 	return nil
+}
+
+// WrittenBack checks to see if the item has been written back or not
+func (item *Item) WrittenBack() bool {
+	item.mu.Lock()
+	defer item.mu.Unlock()
+	return item.info.Fingerprint != ""
 }
 
 // remove the cached file
@@ -1179,11 +1192,23 @@ func (item *Item) setModTime(modTime time.Time) {
 	item.mu.Unlock()
 }
 
+// GetModTime of the cache file
+func (item *Item) GetModTime() (modTime time.Time, err error) {
+	// defer log.Trace(item.name, "modTime=%v", modTime)("")
+	item.mu.Lock()
+	defer item.mu.Unlock()
+	fi, err := item._stat()
+	if err == nil {
+		modTime = fi.ModTime()
+	}
+	return modTime, nil
+}
+
 // ReadAt bytes from the file at off
 func (item *Item) ReadAt(b []byte, off int64) (n int, err error) {
 	n = 0
 	var expBackOff int
-	for retries := 0; retries < fs.Config.LowLevelRetries; retries++ {
+	for retries := 0; retries < fs.GetConfig(context.TODO()).LowLevelRetries; retries++ {
 		item.preAccess()
 		n, err = item.readAt(b, off)
 		item.postAccess()

@@ -4,7 +4,7 @@ This file describes how to make the various kinds of releases
 
 ## Extra required software for making a release
 
-  * [github-release](https://github.com/aktau/github-release) for uploading packages
+  * [gh the github cli](https://github.com/cli/cli) for uploading packages
   * pandoc for making the html and man pages
 
 ## Making a release
@@ -65,9 +65,8 @@ Now
   * git cherry-pick any fixes
   * Do the steps as above
   * make startstable
-  * NB this overwrites the current beta so we need to do this
   * git co master
-  * # cherry pick the changes to the changelog
+  * `#` cherry pick the changes to the changelog - check the diff to make sure it is correct
   * git checkout ${BASE_TAG}-stable docs/content/changelog.md
   * git commit -a -v -m "Changelog updates from Version ${NEW_TAG}"
   * git push
@@ -76,6 +75,24 @@ Now
 
 The rclone docker image should autobuild on via GitHub actions.  If it doesn't
 or needs to be updated then rebuild like this.
+
+See: https://github.com/ilteoood/docker_buildx/issues/19
+See: https://github.com/ilteoood/docker_buildx/blob/master/scripts/install_buildx.sh
+
+```
+git co v1.54.1
+docker pull golang
+export DOCKER_CLI_EXPERIMENTAL=enabled
+docker buildx create --name actions_builder --use
+docker run --rm --privileged docker/binfmt:820fdd95a9972a5308930a2bdfb8573dd4447ad3
+docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+SUPPORTED_PLATFORMS=$(docker buildx inspect --bootstrap | grep 'Platforms:*.*' | cut -d : -f2,3)
+echo "Supported platforms: $SUPPORTED_PLATFORMS"
+docker buildx build --platform linux/amd64,linux/386,linux/arm64,linux/arm/v7 -t rclone/rclone:1.54.1 -t rclone/rclone:1.54 -t rclone/rclone:1 -t rclone/rclone:latest --push .
+docker buildx stop actions_builder
+```
+
+### Old build for linux/amd64 only
 
 ```
 docker pull golang

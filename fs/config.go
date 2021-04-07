@@ -1,6 +1,7 @@
 package fs
 
 import (
+	"context"
 	"net"
 	"strings"
 	"time"
@@ -10,8 +11,8 @@ import (
 
 // Global
 var (
-	// Config is the global config
-	Config = NewConfig()
+	// globalConfig for rclone
+	globalConfig = NewConfig()
 
 	// Read a value from the config file
 	//
@@ -28,11 +29,11 @@ var (
 	}
 
 	// CountError counts an error.  If any errors have been
-	// counted then it will exit with a non zero error code.
+	// counted then rclone will exit with a non zero error code.
 	//
 	// This is a function pointer to decouple the config
 	// implementation from the fs
-	CountError = func(err error) error { return nil }
+	CountError = func(err error) error { return err }
 
 	// ConfigProvider is the config key used for provider options
 	ConfigProvider = "provider"
@@ -42,7 +43,6 @@ var (
 type ConfigInfo struct {
 	LogLevel               LogLevel
 	StatsLogLevel          LogLevel
-	LogSystemdSupport      bool
 	UseJSONLog             bool
 	DryRun                 bool
 	Interactive            bool
@@ -76,8 +76,8 @@ type ConfigInfo struct {
 	NoUnicodeNormalization bool
 	NoUpdateModTime        bool
 	DataRateUnit           string
-	CompareDest            string
-	CopyDest               string
+	CompareDest            []string
+	CopyDest               []string
 	BackupDir              string
 	Suffix                 string
 	SuffixKeepExtension    bool
@@ -121,6 +121,10 @@ type ConfigInfo struct {
 	DownloadHeaders        []*HTTPOption
 	Headers                []*HTTPOption
 	RefreshTimes           bool
+	NoConsole              bool
+	TrafficClass           uint8
+	FsCacheExpireDuration  time.Duration
+	FsCacheExpireInterval  time.Duration
 }
 
 // NewConfig creates a new config with everything set to the default
@@ -158,8 +162,59 @@ func NewConfig() *ConfigInfo {
 	c.MultiThreadStreams = 4
 
 	c.TrackRenamesStrategy = "hash"
+	c.FsCacheExpireDuration = 300 * time.Second
+	c.FsCacheExpireInterval = 60 * time.Second
 
 	return c
+}
+
+// TimeoutOrInfinite returns ci.Timeout if > 0 or infinite otherwise
+func (c *ConfigInfo) TimeoutOrInfinite() time.Duration {
+	if c.Timeout > 0 {
+		return c.Timeout
+	}
+	return ModTimeNotSupported
+}
+
+type configContextKeyType struct{}
+
+// Context key for config
+var configContextKey = configContextKeyType{}
+
+// GetConfig returns the global or context sensitive context
+func GetConfig(ctx context.Context) *ConfigInfo {
+	if ctx == nil {
+		return globalConfig
+	}
+	c := ctx.Value(configContextKey)
+	if c == nil {
+		return globalConfig
+	}
+	return c.(*ConfigInfo)
+}
+
+// CopyConfig copies the global config (if any) from srcCtx into
+// dstCtx returning the new context.
+func CopyConfig(dstCtx, srcCtx context.Context) context.Context {
+	if srcCtx == nil {
+		return dstCtx
+	}
+	c := srcCtx.Value(configContextKey)
+	if c == nil {
+		return dstCtx
+	}
+	return context.WithValue(dstCtx, configContextKey, c)
+}
+
+// AddConfig returns a mutable config structure based on a shallow
+// copy of that found in ctx and returns a new context with that added
+// to it.
+func AddConfig(ctx context.Context) (context.Context, *ConfigInfo) {
+	c := GetConfig(ctx)
+	cCopy := new(ConfigInfo)
+	*cCopy = *c
+	newCtx := context.WithValue(ctx, configContextKey, cCopy)
+	return newCtx, cCopy
 }
 
 // ConfigToEnv converts a config section and name, e.g. ("myremote",

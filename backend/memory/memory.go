@@ -222,7 +222,7 @@ func (f *Fs) setRoot(root string) {
 }
 
 // NewFs constructs an Fs from the path, bucket:path
-func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
 	// Parse config into Options struct
 	opt := new(Options)
 	err := configstruct.Set(m, opt)
@@ -241,7 +241,7 @@ func NewFs(name, root string, m configmap.Mapper) (fs.Fs, error) {
 		WriteMimeType:     true,
 		BucketBased:       true,
 		BucketBasedRootOK: true,
-	}).Fill(f)
+	}).Fill(ctx, f)
 	if f.rootBucket != "" && f.rootDirectory != "" {
 		od := buckets.getObjectData(f.rootBucket, f.rootDirectory)
 		if od != nil {
@@ -592,7 +592,7 @@ func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, op
 		data:     data,
 		hash:     "",
 		modTime:  src.ModTime(ctx),
-		mimeType: fs.MimeType(ctx, o),
+		mimeType: fs.MimeType(ctx, src),
 	}
 	buckets.updateObjectData(bucket, bucketPath, o.od)
 	return nil
