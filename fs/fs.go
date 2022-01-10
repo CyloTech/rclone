@@ -1223,7 +1223,7 @@ func ParseRemote(path string) (fsInfo *RegInfo, configName, fsPath string, conne
 			m := ConfigMap(nil, configName, parsed.Config)
 			fsName, ok = m.Get("type")
 			if fsName == "local" {
-				return nil, "", "", ErrorNotAllowed
+				return nil, "", "", nil, ErrorNotAllowed
 			}
 			if !ok {
 				return nil, "", "", nil, ErrorNotFoundInConfigFile
