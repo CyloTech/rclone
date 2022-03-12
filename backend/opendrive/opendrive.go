@@ -42,7 +42,7 @@ func init() {
 		NewFs:       NewFs,
 		Options: []fs.Option{{
 			Name:     "username",
-			Help:     "Username",
+			Help:     "Username.",
 			Required: true,
 		}, {
 			Name:       "password",
@@ -88,7 +88,7 @@ func init() {
 
 Note that these chunks are buffered in memory so increasing them will
 increase memory use.`,
-			Default:  10 * fs.MebiByte,
+			Default:  10 * fs.Mebi,
 			Advanced: true,
 		}},
 	})

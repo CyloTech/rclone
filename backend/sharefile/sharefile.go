@@ -77,7 +77,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
@@ -110,10 +109,10 @@ const (
 	decayConstant               = 2              // bigger for slower decay, exponential
 	apiPath                     = "/sf/v3"       // add to endpoint to get API path
 	tokenPath                   = "/oauth/token" // add to endpoint to get Token path
-	minChunkSize                = 256 * fs.KibiByte
-	maxChunkSize                = 2 * fs.GibiByte
-	defaultChunkSize            = 64 * fs.MebiByte
-	defaultUploadCutoff         = 128 * fs.MebiByte
+	minChunkSize                = 256 * fs.Kibi
+	maxChunkSize                = 2 * fs.Gibi
+	defaultChunkSize            = 64 * fs.Mebi
+	defaultUploadCutoff         = 128 * fs.Mebi
 )
 
 // Generate a new oauth2 config which we will update when we know the TokenURL
@@ -136,7 +135,7 @@ func init() {
 		Name:        "sharefile",
 		Description: "Citrix Sharefile",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
 			oauthConfig := newOauthConfig("")
 			checkAuth := func(oauthConfig *oauth2.Config, auth *oauthutil.AuthResult) error {
 				if auth == nil || auth.Form == nil {
@@ -152,13 +151,10 @@ func init() {
 				oauthConfig.Endpoint.TokenURL = endpoint + tokenPath
 				return nil
 			}
-			opt := oauthutil.Options{
-				CheckAuth: checkAuth,
-			}
-			err := oauthutil.Config(ctx, "sharefile", name, m, oauthConfig, &opt)
-			if err != nil {
-				log.Fatalf("Failed to configure token: %v", err)
-			}
+			return oauthutil.ConfigOut("", &oauthutil.Options{
+				OAuth2Config: oauthConfig,
+				CheckAuth:    checkAuth,
+			})
 		},
 		Options: []fs.Option{{
 			Name:     "upload_cutoff",
@@ -167,13 +163,13 @@ func init() {
 			Advanced: true,
 		}, {
 			Name: "root_folder_id",
-			Help: `ID of the root folder
+			Help: `ID of the root folder.
 
 Leave blank to access "Personal Folders".  You can use one of the
 standard values here or any folder ID (long hex number ID).`,
 			Examples: []fs.OptionExample{{
 				Value: "",
-				Help:  `Access the Personal Folders. (Default)`,
+				Help:  `Access the Personal Folders (default).`,
 			}, {
 				Value: "favorites",
 				Help:  "Access the Favorites folder.",
@@ -190,7 +186,9 @@ standard values here or any folder ID (long hex number ID).`,
 		}, {
 			Name:    "chunk_size",
 			Default: defaultChunkSize,
-			Help: `Upload chunk size. Must a power of 2 >= 256k.
+			Help: `Upload chunk size.
+
+Must a power of 2 >= 256k.
 
 Making this larger will improve performance, but note that each chunk
 is buffered in memory one per transfer.
@@ -341,8 +339,12 @@ func (f *Fs) readMetaDataForIDPath(ctx context.Context, id, path string, directo
 	if directoriesOnly && item.Type != api.ItemTypeFolder {
 		return nil, fs.ErrorIsFile
 	}
-	if filesOnly && item.Type != api.ItemTypeFile {
-		return nil, fs.ErrorNotAFile
+	if filesOnly {
+		if item.Type == api.ItemTypeFolder {
+			return nil, fs.ErrorIsDir
+		} else if item.Type != api.ItemTypeFile {
+			return nil, fs.ErrorNotAFile
+		}
 	}
 	return &item, nil
 }

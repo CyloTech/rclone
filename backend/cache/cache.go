@@ -1,3 +1,4 @@
+//go:build !plan9 && !js
 // +build !plan9,!js
 
 package cache
@@ -68,26 +69,26 @@ func init() {
 		CommandHelp: commandHelp,
 		Options: []fs.Option{{
 			Name:     "remote",
-			Help:     "Remote to cache.\nNormally should contain a ':' and a path, e.g. \"myremote:path/to/dir\",\n\"myremote:bucket\" or maybe \"myremote:\" (not recommended).",
+			Help:     "Remote to cache.\n\nNormally should contain a ':' and a path, e.g. \"myremote:path/to/dir\",\n\"myremote:bucket\" or maybe \"myremote:\" (not recommended).",
 			Required: true,
 		}, {
 			Name: "plex_url",
-			Help: "The URL of the Plex server",
+			Help: "The URL of the Plex server.",
 		}, {
 			Name: "plex_username",
-			Help: "The username of the Plex user",
+			Help: "The username of the Plex user.",
 		}, {
 			Name:       "plex_password",
-			Help:       "The password of the Plex user",
+			Help:       "The password of the Plex user.",
 			IsPassword: true,
 		}, {
 			Name:     "plex_token",
-			Help:     "The plex token for authentication - auto set normally",
+			Help:     "The plex token for authentication - auto set normally.",
 			Hide:     fs.OptionHideBoth,
 			Advanced: true,
 		}, {
 			Name:     "plex_insecure",
-			Help:     "Skip all certificate verification when connecting to the Plex server",
+			Help:     "Skip all certificate verification when connecting to the Plex server.",
 			Advanced: true,
 		}, {
 			Name: "chunk_size",
@@ -98,14 +99,14 @@ changed, any downloaded chunks will be invalid and cache-chunk-path
 will need to be cleared or unexpected EOF errors will occur.`,
 			Default: DefCacheChunkSize,
 			Examples: []fs.OptionExample{{
-				Value: "1m",
-				Help:  "1MB",
+				Value: "1M",
+				Help:  "1 MiB",
 			}, {
 				Value: "5M",
-				Help:  "5 MB",
+				Help:  "5 MiB",
 			}, {
 				Value: "10M",
-				Help:  "10 MB",
+				Help:  "10 MiB",
 			}},
 		}, {
 			Name: "info_age",
@@ -132,22 +133,22 @@ oldest chunks until it goes under this value.`,
 			Default: DefCacheTotalChunkSize,
 			Examples: []fs.OptionExample{{
 				Value: "500M",
-				Help:  "500 MB",
+				Help:  "500 MiB",
 			}, {
 				Value: "1G",
-				Help:  "1 GB",
+				Help:  "1 GiB",
 			}, {
 				Value: "10G",
-				Help:  "10 GB",
+				Help:  "10 GiB",
 			}},
 		}, {
 			Name:     "db_path",
-			Default:  filepath.Join(config.CacheDir, "cache-backend"),
-			Help:     "Directory to store file structure metadata DB.\nThe remote name is used as the DB file name.",
+			Default:  filepath.Join(config.GetCacheDir(), "cache-backend"),
+			Help:     "Directory to store file structure metadata DB.\n\nThe remote name is used as the DB file name.",
 			Advanced: true,
 		}, {
 			Name:    "chunk_path",
-			Default: filepath.Join(config.CacheDir, "cache-backend"),
+			Default: filepath.Join(config.GetCacheDir(), "cache-backend"),
 			Help: `Directory to cache chunk files.
 
 Path to where partial file data (chunks) are stored locally. The remote
@@ -167,6 +168,7 @@ then "--cache-chunk-path" will use the same path as "--cache-db-path".`,
 			Name:    "chunk_clean_interval",
 			Default: DefCacheChunkCleanInterval,
 			Help: `How often should the cache perform cleanups of the chunk storage.
+
 The default value should be ok for most people. If you find that the
 cache goes over "cache-chunk-total-size" too often then try to lower
 this value to force it to perform cleanups more often.`,
@@ -220,7 +222,7 @@ available on the local machine.`,
 		}, {
 			Name:    "rps",
 			Default: int(DefCacheRps),
-			Help: `Limits the number of requests per second to the source FS (-1 to disable)
+			Help: `Limits the number of requests per second to the source FS (-1 to disable).
 
 This setting places a hard limit on the number of requests per second
 that cache will be doing to the cloud provider remote and try to
@@ -241,7 +243,7 @@ still pass.`,
 		}, {
 			Name:    "writes",
 			Default: DefCacheWrites,
-			Help: `Cache file data on writes through the FS
+			Help: `Cache file data on writes through the FS.
 
 If you need to read files immediately after you upload them through
 cache you can enable this flag to have their data stored in the
@@ -262,7 +264,7 @@ provider`,
 		}, {
 			Name:    "tmp_wait_time",
 			Default: DefCacheTmpWaitTime,
-			Help: `How long should files be stored in local cache before being uploaded
+			Help: `How long should files be stored in local cache before being uploaded.
 
 This is the duration that a file must wait in the temporary location
 _cache-tmp-upload-path_ before it is selected for upload.
@@ -273,7 +275,7 @@ to start the upload if a queue formed for this purpose.`,
 		}, {
 			Name:    "db_wait_time",
 			Default: DefCacheDbWaitTime,
-			Help: `How long to wait for the DB to be available - 0 is unlimited
+			Help: `How long to wait for the DB to be available - 0 is unlimited.
 
 Only one process can have the DB open at any one time, so rclone waits
 for this duration for the DB to become available before it gives an
@@ -339,8 +341,14 @@ func parseRootPath(path string) (string, error) {
 	return strings.Trim(path, "/"), nil
 }
 
+var warnDeprecated sync.Once
+
 // NewFs constructs an Fs from the path, container:path
 func NewFs(ctx context.Context, name, rootPath string, m configmap.Mapper) (fs.Fs, error) {
+	warnDeprecated.Do(func() {
+		fs.Logf(nil, "WARNING: Cache backend is deprecated and may be removed in future. Please use VFS instead.")
+	})
+
 	// Parse config into Options struct
 	opt := new(Options)
 	err := configstruct.Set(m, opt)
@@ -414,8 +422,8 @@ func NewFs(ctx context.Context, name, rootPath string, m configmap.Mapper) (fs.F
 	dbPath := f.opt.DbPath
 	chunkPath := f.opt.ChunkPath
 	// if the dbPath is non default but the chunk path is default, we overwrite the last to follow the same one as dbPath
-	if dbPath != filepath.Join(config.CacheDir, "cache-backend") &&
-		chunkPath == filepath.Join(config.CacheDir, "cache-backend") {
+	if dbPath != filepath.Join(config.GetCacheDir(), "cache-backend") &&
+		chunkPath == filepath.Join(config.GetCacheDir(), "cache-backend") {
 		chunkPath = dbPath
 	}
 	if filepath.Ext(dbPath) != "" {

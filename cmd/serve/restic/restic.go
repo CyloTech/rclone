@@ -15,13 +15,13 @@ import (
 	"github.com/rclone/rclone/cmd"
 	"github.com/rclone/rclone/cmd/serve/httplib"
 	"github.com/rclone/rclone/cmd/serve/httplib/httpflags"
-	"github.com/rclone/rclone/cmd/serve/httplib/serve"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
 	"github.com/rclone/rclone/fs/config/flags"
 	"github.com/rclone/rclone/fs/fserrors"
 	"github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/lib/http/serve"
 	"github.com/rclone/rclone/lib/terminal"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/http2"
@@ -37,10 +37,10 @@ var (
 func init() {
 	httpflags.AddFlags(Command.Flags())
 	flagSet := Command.Flags()
-	flags.BoolVarP(flagSet, &stdio, "stdio", "", false, "run an HTTP2 server on stdin/stdout")
-	flags.BoolVarP(flagSet, &appendOnly, "append-only", "", false, "disallow deletion of repository data")
-	flags.BoolVarP(flagSet, &privateRepos, "private-repos", "", false, "users can only access their private repo")
-	flags.BoolVarP(flagSet, &cacheObjects, "cache-objects", "", true, "cache listed objects")
+	flags.BoolVarP(flagSet, &stdio, "stdio", "", false, "Run an HTTP2 server on stdin/stdout")
+	flags.BoolVarP(flagSet, &appendOnly, "append-only", "", false, "Disallow deletion of repository data")
+	flags.BoolVarP(flagSet, &privateRepos, "private-repos", "", false, "Users can only access their private repo")
+	flags.BoolVarP(flagSet, &cacheObjects, "cache-objects", "", true, "Cache listed objects")
 }
 
 // Command definition for cobra

@@ -32,7 +32,6 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
   * Dropbox [:page_facing_up:](https://rclone.org/dropbox/)
   * Enterprise File Fabric [:page_facing_up:](https://rclone.org/filefabric/)
   * FTP [:page_facing_up:](https://rclone.org/ftp/)
-  * GetSky [:page_facing_up:](https://rclone.org/jottacloud/)
   * Google Cloud Storage [:page_facing_up:](https://rclone.org/googlecloudstorage/)
   * Google Drive [:page_facing_up:](https://rclone.org/drive/)
   * Google Photos [:page_facing_up:](https://rclone.org/googlephotos/)
@@ -62,6 +61,7 @@ Rclone *("rsync for cloud storage")* is a command line program to sync files and
   * Rackspace Cloud Files [:page_facing_up:](https://rclone.org/swift/)
   * Scaleway [:page_facing_up:](https://rclone.org/s3/#scaleway)
   * Seafile [:page_facing_up:](https://rclone.org/seafile/)
+  * SeaweedFS [:page_facing_up:](https://rclone.org/s3/#seaweedfs)
   * SFTP [:page_facing_up:](https://rclone.org/sftp/)
   * StackPath [:page_facing_up:](https://rclone.org/s3/#stackpath)
   * SugarSync [:page_facing_up:](https://rclone.org/sugarsync/)
@@ -87,7 +87,6 @@ Please see [the full list of all storage providers and their features](https://r
   * Optional large file chunking ([Chunker](https://rclone.org/chunker/))
   * Optional transparent compression ([Compress](https://rclone.org/compress/))
   * Optional encryption ([Crypt](https://rclone.org/crypt/))
-  * Optional cache ([Cache](https://rclone.org/cache/))
   * Optional FUSE mount ([rclone mount](https://rclone.org/commands/rclone_mount/))
   * Multi-threaded downloads to local disk
   * Can [serve](https://rclone.org/commands/rclone_serve/) local or remote files over HTTP/WebDav/FTP/SFTP/dlna

@@ -54,10 +54,10 @@ const (
 	decayConstant       = 1 // bigger for slower decay, exponential
 	maxParts            = 10000
 	maxVersions         = 100 // maximum number of versions we search in --b2-versions mode
-	minChunkSize        = 5 * fs.MebiByte
-	defaultChunkSize    = 96 * fs.MebiByte
-	defaultUploadCutoff = 200 * fs.MebiByte
-	largeFileCopyCutoff = 4 * fs.GibiByte          // 5E9 is the max
+	minChunkSize        = 5 * fs.Mebi
+	defaultChunkSize    = 96 * fs.Mebi
+	defaultUploadCutoff = 200 * fs.Mebi
+	largeFileCopyCutoff = 4 * fs.Gibi              // 5E9 is the max
 	memoryPoolFlushTime = fs.Duration(time.Minute) // flush the cached buffers after this long
 	memoryPoolUseMmap   = false
 )
@@ -75,15 +75,15 @@ func init() {
 		NewFs:       NewFs,
 		Options: []fs.Option{{
 			Name:     "account",
-			Help:     "Account ID or Application Key ID",
+			Help:     "Account ID or Application Key ID.",
 			Required: true,
 		}, {
 			Name:     "key",
-			Help:     "Application Key",
+			Help:     "Application Key.",
 			Required: true,
 		}, {
 			Name:     "endpoint",
-			Help:     "Endpoint for the service.\nLeave blank normally.",
+			Help:     "Endpoint for the service.\n\nLeave blank normally.",
 			Advanced: true,
 		}, {
 			Name: "test_mode",
@@ -103,7 +103,7 @@ in the [b2 integrations checklist](https://www.backblaze.com/b2/docs/integration
 			Advanced: true,
 		}, {
 			Name:     "versions",
-			Help:     "Include old versions in directory listings.\nNote that when using this no file write operations are permitted,\nso you can't upload files or delete them.",
+			Help:     "Include old versions in directory listings.\n\nNote that when using this no file write operations are permitted,\nso you can't upload files or delete them.",
 			Default:  false,
 			Advanced: true,
 		}, {
@@ -116,32 +116,34 @@ in the [b2 integrations checklist](https://www.backblaze.com/b2/docs/integration
 
 Files above this size will be uploaded in chunks of "--b2-chunk-size".
 
-This value should be set no larger than 4.657GiB (== 5GB).`,
+This value should be set no larger than 4.657 GiB (== 5 GB).`,
 			Default:  defaultUploadCutoff,
 			Advanced: true,
 		}, {
 			Name: "copy_cutoff",
-			Help: `Cutoff for switching to multipart copy
+			Help: `Cutoff for switching to multipart copy.
 
 Any files larger than this that need to be server-side copied will be
 copied in chunks of this size.
 
-The minimum is 0 and the maximum is 4.6GB.`,
+The minimum is 0 and the maximum is 4.6 GiB.`,
 			Default:  largeFileCopyCutoff,
 			Advanced: true,
 		}, {
 			Name: "chunk_size",
-			Help: `Upload chunk size. Must fit in memory.
+			Help: `Upload chunk size.
 
-When uploading large files, chunk the file into this size.  Note that
-these chunks are buffered in memory and there might a maximum of
-"--transfers" chunks in progress at once.  5,000,000 Bytes is the
-minimum size.`,
+When uploading large files, chunk the file into this size.
+
+Must fit in memory. These chunks are buffered in memory and there
+might a maximum of "--transfers" chunks in progress at once.
+
+5,000,000 Bytes is the minimum size.`,
 			Default:  defaultChunkSize,
 			Advanced: true,
 		}, {
 			Name: "disable_checksum",
-			Help: `Disable checksums for large (> upload cutoff) files
+			Help: `Disable checksums for large (> upload cutoff) files.
 
 Normally rclone will calculate the SHA1 checksum of the input before
 uploading it so it can add it to metadata on the object. This is great
@@ -1353,7 +1355,7 @@ func (f *Fs) getDownloadAuthorization(ctx context.Context, bucket, remote string
 	}
 	var request = api.GetDownloadAuthorizationRequest{
 		BucketID:               bucketID,
-		FileNamePrefix:         f.opt.Enc.FromStandardPath(path.Join(f.root, remote)),
+		FileNamePrefix:         f.opt.Enc.FromStandardPath(path.Join(f.rootDirectory, remote)),
 		ValidDurationInSeconds: validDurationInSeconds,
 	}
 	var response api.GetDownloadAuthorizationResponse

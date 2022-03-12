@@ -22,6 +22,7 @@ package operations_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -33,6 +34,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	_ "github.com/rclone/rclone/backend/all" // import all backends
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/accounting"
@@ -42,7 +44,7 @@ import (
 	"github.com/rclone/rclone/fs/hash"
 	"github.com/rclone/rclone/fs/operations"
 	"github.com/rclone/rclone/fstest"
-	"github.com/rclone/rclone/lib/random"
+	"github.com/rclone/rclone/fstest/fstests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -189,145 +191,129 @@ func TestHashSums(t *testing.T) {
 
 	fstest.CheckItems(t, r.Fremote, file1, file2)
 
-	// MD5 Sum without download
+	hashes := r.Fremote.Hashes()
 
-	var buf bytes.Buffer
-	err := operations.HashLister(ctx, hash.MD5, false, true, r.Fremote, &buf)
+	var quickXorHash hash.Type
+	err := quickXorHash.Set("QuickXorHash")
 	require.NoError(t, err)
-	res := buf.String()
-	if !strings.Contains(res, "336d5ebc5436534e61d16e63ddfca327  empty space\n") &&
-		!strings.Contains(res, "                     UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                                  empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "d6548b156ea68a4e003e786df99eee76  potato2\n") &&
-		!strings.Contains(res, "                     UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                                  potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
 
-	// MD5 Sum with download
+	for _, test := range []struct {
+		name     string
+		download bool
+		base64   bool
+		ht       hash.Type
+		want     []string
+	}{
+		{
+			ht: hash.MD5,
+			want: []string{
+				"336d5ebc5436534e61d16e63ddfca327  empty space\n",
+				"d6548b156ea68a4e003e786df99eee76  potato2\n",
+			},
+		},
+		{
+			ht:       hash.MD5,
+			download: true,
+			want: []string{
+				"336d5ebc5436534e61d16e63ddfca327  empty space\n",
+				"d6548b156ea68a4e003e786df99eee76  potato2\n",
+			},
+		},
+		{
+			ht: hash.SHA1,
+			want: []string{
+				"3bc15c8aae3e4124dd409035f32ea2fd6835efc9  empty space\n",
+				"9dc7f7d3279715991a22853f5981df582b7f9f6d  potato2\n",
+			},
+		},
+		{
+			ht:       hash.SHA1,
+			download: true,
+			want: []string{
+				"3bc15c8aae3e4124dd409035f32ea2fd6835efc9  empty space\n",
+				"9dc7f7d3279715991a22853f5981df582b7f9f6d  potato2\n",
+			},
+		},
+		{
+			ht: quickXorHash,
+			want: []string{
+				"2d00000000000000000000000100000000000000  empty space\n",
+				"4001dad296b6b4a52d6d694b67dad296b6b4a52d  potato2\n",
+			},
+		},
+		{
+			ht:       quickXorHash,
+			download: true,
+			want: []string{
+				"2d00000000000000000000000100000000000000  empty space\n",
+				"4001dad296b6b4a52d6d694b67dad296b6b4a52d  potato2\n",
+			},
+		},
+		{
+			ht:     quickXorHash,
+			base64: true,
+			want: []string{
+				"LQAAAAAAAAAAAAAAAQAAAAAAAAA=  empty space\n",
+				"QAHa0pa2tKUtbWlLZ9rSlra0pS0=  potato2\n",
+			},
+		},
+		{
+			ht:       quickXorHash,
+			base64:   true,
+			download: true,
+			want: []string{
+				"LQAAAAAAAAAAAAAAAQAAAAAAAAA=  empty space\n",
+				"QAHa0pa2tKUtbWlLZ9rSlra0pS0=  potato2\n",
+			},
+		},
+	} {
+		if !hashes.Contains(test.ht) {
+			continue
+		}
+		name := strings.Title(test.ht.String())
+		if test.download {
+			name += "Download"
+		}
+		if test.base64 {
+			name += "Base64"
+		}
+		t.Run(name, func(t *testing.T) {
+			var buf bytes.Buffer
+			err := operations.HashLister(ctx, test.ht, test.base64, test.download, r.Fremote, &buf)
+			require.NoError(t, err)
+			res := buf.String()
+			for _, line := range test.want {
+				assert.Contains(t, res, line)
+			}
+		})
+	}
+}
 
+func TestHashSumsWithErrors(t *testing.T) {
+	ctx := context.Background()
+	memFs, err := fs.NewFs(ctx, ":memory:")
+	require.NoError(t, err)
+
+	// Make a test file
+	content := "-"
+	item1 := fstest.NewItem("file1", content, t1)
+	_, _ = fstests.PutTestContents(ctx, t, memFs, &item1, content, true)
+
+	// MemoryFS supports MD5
+	buf := &bytes.Buffer{}
+	err = operations.HashLister(ctx, hash.MD5, false, false, memFs, buf)
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "336d5ebc5436534e61d16e63ddfca327  file1\n")
+
+	// MemoryFS can't do SHA1, but UNSUPPORTED must not appear in the output
 	buf.Reset()
-	err = operations.HashLister(ctx, hash.MD5, false, true, r.Fremote, &buf)
+	err = operations.HashLister(ctx, hash.SHA1, false, false, memFs, buf)
 	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "336d5ebc5436534e61d16e63ddfca327  empty space\n") &&
-		!strings.Contains(res, "                     UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                                  empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "d6548b156ea68a4e003e786df99eee76  potato2\n") &&
-		!strings.Contains(res, "                     UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                                  potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
+	assert.NotContains(t, buf.String(), " UNSUPPORTED ")
 
-	// SHA1 Sum without download
-
-	buf.Reset()
-	err = operations.HashLister(ctx, hash.SHA1, false, false, r.Fremote, &buf)
-	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "3bc15c8aae3e4124dd409035f32ea2fd6835efc9  empty space\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                                          empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "9dc7f7d3279715991a22853f5981df582b7f9f6d  potato2\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                                          potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
-
-	// SHA1 Sum with download
-
-	buf.Reset()
-	err = operations.HashLister(ctx, hash.SHA1, false, true, r.Fremote, &buf)
-	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "3bc15c8aae3e4124dd409035f32ea2fd6835efc9  empty space\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                                          empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "9dc7f7d3279715991a22853f5981df582b7f9f6d  potato2\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                                          potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
-
-	// QuickXorHash Sum without download
-
-	buf.Reset()
-	var ht hash.Type
-	err = ht.Set("QuickXorHash")
-	require.NoError(t, err)
-	err = operations.HashLister(ctx, ht, false, false, r.Fremote, &buf)
-	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "2d00000000000000000000000100000000000000  empty space\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                                          empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "4001dad296b6b4a52d6d694b67dad296b6b4a52d  potato2\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                                          potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
-
-	// QuickXorHash Sum with download
-
-	buf.Reset()
-	require.NoError(t, err)
-	err = operations.HashLister(ctx, ht, false, true, r.Fremote, &buf)
-	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "2d00000000000000000000000100000000000000  empty space\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                                          empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "4001dad296b6b4a52d6d694b67dad296b6b4a52d  potato2\n") &&
-		!strings.Contains(res, "                             UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                                          potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
-
-	// QuickXorHash Sum with Base64 Encoded, without download
-
-	buf.Reset()
-	err = operations.HashLister(ctx, ht, true, false, r.Fremote, &buf)
-	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "LQAAAAAAAAAAAAAAAQAAAAAAAAA=  empty space\n") &&
-		!strings.Contains(res, "                 UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                              empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "QAHa0pa2tKUtbWlLZ9rSlra0pS0=  potato2\n") &&
-		!strings.Contains(res, "                 UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                              potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
-
-	// QuickXorHash Sum with Base64 Encoded and download
-
-	buf.Reset()
-	err = operations.HashLister(ctx, ht, true, true, r.Fremote, &buf)
-	require.NoError(t, err)
-	res = buf.String()
-	if !strings.Contains(res, "LQAAAAAAAAAAAAAAAQAAAAAAAAA=  empty space\n") &&
-		!strings.Contains(res, "                 UNSUPPORTED  empty space\n") &&
-		!strings.Contains(res, "                              empty space\n") {
-		t.Errorf("empty space missing: %q", res)
-	}
-	if !strings.Contains(res, "QAHa0pa2tKUtbWlLZ9rSlra0pS0=  potato2\n") &&
-		!strings.Contains(res, "                 UNSUPPORTED  potato2\n") &&
-		!strings.Contains(res, "                              potato2\n") {
-		t.Errorf("potato2 missing: %q", res)
-	}
+	// ERROR must not appear in the output either
+	assert.NotContains(t, buf.String(), " ERROR ")
+	// TODO mock an unreadable file
 }
 
 func TestSuffixName(t *testing.T) {
@@ -713,7 +699,7 @@ func TestCopyURL(t *testing.T) {
 	fstest.CheckListingWithPrecision(t, r.Fremote, []fstest.Item{file1}, nil, fs.ModTimeNotSupported)
 
 	// Check file clobbering
-	o, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, false, true)
+	_, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, false, true)
 	require.Error(t, err)
 
 	// Check auto file naming
@@ -725,7 +711,7 @@ func TestCopyURL(t *testing.T) {
 	assert.Equal(t, urlFileName, o.Remote())
 
 	// Check auto file naming when url without file name
-	o, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, true, false)
+	_, err = operations.CopyURL(ctx, r.Fremote, "file1", ts.URL, true, false)
 	require.Error(t, err)
 
 	// Check an error is returned for a 404
@@ -809,6 +795,32 @@ func TestMoveFile(t *testing.T) {
 	require.NoError(t, err)
 	fstest.CheckItems(t, r.Flocal)
 	fstest.CheckItems(t, r.Fremote, file2)
+}
+
+func TestMoveFileWithIgnoreExisting(t *testing.T) {
+	ctx := context.Background()
+	ctx, ci := fs.AddConfig(ctx)
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+	file1 := r.WriteFile("file1", "file1 contents", t1)
+	fstest.CheckItems(t, r.Flocal, file1)
+
+	ci.IgnoreExisting = true
+
+	err := operations.MoveFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
+	require.NoError(t, err)
+	fstest.CheckItems(t, r.Flocal)
+	fstest.CheckItems(t, r.Fremote, file1)
+
+	// Recreate file with updated content
+	file1b := r.WriteFile("file1", "file1 modified", t2)
+	fstest.CheckItems(t, r.Flocal, file1b)
+
+	// Ensure modified file did not transfer and was not deleted
+	err = operations.MoveFile(ctx, r.Fremote, r.Flocal, file1.Path, file1b.Path)
+	require.NoError(t, err)
+	fstest.CheckItems(t, r.Flocal, file1b)
+	fstest.CheckItems(t, r.Fremote, file1)
 }
 
 func TestCaseInsensitiveMoveFile(t *testing.T) {
@@ -1206,10 +1218,10 @@ func TestListFormat(t *testing.T) {
 			Format: "2006-01-02T15:04:05.000000000Z07:00"},
 		IsDir: false,
 		Hashes: map[string]string{
-			"MD5":          "0cc175b9c0f1b6a831c399e269772661",
-			"SHA-1":        "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
-			"DropboxHash":  "bf5d3affb73efd2ec6c36ad3112dd933efed63c4e1cbffcfa88e2759c144f2d8",
-			"QuickXorHash": "6100000000000000000000000100000000000000"},
+			"md5":      "0cc175b9c0f1b6a831c399e269772661",
+			"sha1":     "86f7e437faa5a7fce15d1ddcb9eaeaea377667b8",
+			"dropbox":  "bf5d3affb73efd2ec6c36ad3112dd933efed63c4e1cbffcfa88e2759c144f2d8",
+			"quickxor": "6100000000000000000000000100000000000000"},
 		ID:     "fileID",
 		OrigID: "fileOrigID",
 	}
@@ -1503,10 +1515,17 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 	defer accounting.Stats(ctx).ResetCounters()
 
 	const sizeCutoff = 2048
+
+	// Make random incompressible data
+	randomData := make([]byte, sizeCutoff)
+	_, err := rand.Read(randomData)
+	require.NoError(t, err)
+	randomString := string(randomData)
+
 	file1 := r.WriteFile("TestCopyFileMaxTransfer/file1", "file1 contents", t1)
-	file2 := r.WriteFile("TestCopyFileMaxTransfer/file2", "file2 contents"+random.String(sizeCutoff), t2)
-	file3 := r.WriteFile("TestCopyFileMaxTransfer/file3", "file3 contents"+random.String(sizeCutoff), t2)
-	file4 := r.WriteFile("TestCopyFileMaxTransfer/file4", "file4 contents"+random.String(sizeCutoff), t2)
+	file2 := r.WriteFile("TestCopyFileMaxTransfer/file2", "file2 contents"+randomString, t2)
+	file3 := r.WriteFile("TestCopyFileMaxTransfer/file3", "file3 contents"+randomString, t2)
+	file4 := r.WriteFile("TestCopyFileMaxTransfer/file4", "file4 contents"+randomString, t2)
 
 	// Cutoff mode: Hard
 	ci.MaxTransfer = sizeCutoff
@@ -1514,7 +1533,7 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 
 	// file1: Show a small file gets transferred OK
 	accounting.Stats(ctx).ResetCounters()
-	err := operations.CopyFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
+	err = operations.CopyFile(ctx, r.Fremote, r.Flocal, file1.Path, file1.Path)
 	require.NoError(t, err)
 	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
 	fstest.CheckItems(t, r.Fremote, file1)
@@ -1554,4 +1573,32 @@ func TestCopyFileMaxTransfer(t *testing.T) {
 	require.NoError(t, err)
 	fstest.CheckItems(t, r.Flocal, file1, file2, file3, file4)
 	fstest.CheckItems(t, r.Fremote, file1, file4)
+}
+
+func TestTouchDir(t *testing.T) {
+	ctx := context.Background()
+	r := fstest.NewRun(t)
+	defer r.Finalise()
+
+	if r.Fremote.Precision() == fs.ModTimeNotSupported {
+		t.Skip("Skipping test as remote does not support modtime")
+	}
+
+	file1 := r.WriteBoth(ctx, "potato2", "------------------------------------------------------------", t1)
+	file2 := r.WriteBoth(ctx, "empty space", "-", t2)
+	file3 := r.WriteBoth(ctx, "sub dir/potato3", "hello", t2)
+	fstest.CheckItems(t, r.Fremote, file1, file2, file3)
+
+	timeValue := time.Date(2010, 9, 8, 7, 6, 5, 4, time.UTC)
+	err := operations.TouchDir(ctx, r.Fremote, timeValue, true)
+	require.NoError(t, err)
+	if accounting.Stats(ctx).GetErrors() != 0 {
+		err = errors.Cause(accounting.Stats(ctx).GetLastError())
+		require.True(t, err == fs.ErrorCantSetModTime || err == fs.ErrorCantSetModTimeWithoutDelete)
+	} else {
+		file1.ModTime = timeValue
+		file2.ModTime = timeValue
+		file3.ModTime = timeValue
+		fstest.CheckItems(t, r.Fremote, file1, file2, file3)
+	}
 }

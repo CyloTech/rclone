@@ -70,15 +70,11 @@ func init() {
 		NewFs:       NewFs,
 		Options: []fs.Option{{
 			Name:     "url",
-			Help:     "URL of http host to connect to",
+			Help:     "URL of http host to connect to.\n\nE.g. https://example.com.",
 			Required: true,
-			Examples: []fs.OptionExample{{
-				Value: "https://example.com",
-				Help:  "Connect to example.com",
-			}},
 		}, {
 			Name: "vendor",
-			Help: "Name of the Webdav site/service/software you are using",
+			Help: "Name of the Webdav site/service/software you are using.",
 			Examples: []fs.OptionExample{{
 				Value: "nextcloud",
 				Help:  "Nextcloud",
@@ -87,31 +83,46 @@ func init() {
 				Help:  "Owncloud",
 			}, {
 				Value: "sharepoint",
-				Help:  "Sharepoint Online, authenticated by Microsoft account.",
+				Help:  "Sharepoint Online, authenticated by Microsoft account",
 			}, {
 				Value: "sharepoint-ntlm",
-				Help:  "Sharepoint with NTLM authentication. Usually self-hosted or on-premises.",
+				Help:  "Sharepoint with NTLM authentication, usually self-hosted or on-premises",
 			}, {
 				Value: "other",
 				Help:  "Other site/service or software",
 			}},
 		}, {
 			Name: "user",
-			Help: "User name. In case NTLM authentication is used, the username should be in the format 'Domain\\User'.",
+			Help: "User name.\n\nIn case NTLM authentication is used, the username should be in the format 'Domain\\User'.",
 		}, {
 			Name:       "pass",
 			Help:       "Password.",
 			IsPassword: true,
 		}, {
 			Name: "bearer_token",
-			Help: "Bearer token instead of user/pass (e.g. a Macaroon)",
+			Help: "Bearer token instead of user/pass (e.g. a Macaroon).",
 		}, {
 			Name:     "bearer_token_command",
-			Help:     "Command to run to get a bearer token",
+			Help:     "Command to run to get a bearer token.",
 			Advanced: true,
 		}, {
 			Name:     config.ConfigEncoding,
 			Help:     configEncodingHelp,
+			Advanced: true,
+		}, {
+			Name: "headers",
+			Help: `Set HTTP headers for all transactions.
+
+Use this to set additional HTTP headers for all transactions
+
+The input format is comma separated list of key,value pairs.  Standard
+[CSV encoding](https://godoc.org/encoding/csv) may be used.
+
+For example to set a Cookie use 'Cookie,name=value', or '"Cookie","name=value"'.
+
+You can set multiple headers, e.g. '"Cookie","name=value","Authorization","xxx"'.
+`,
+			Default:  fs.CommaSepList{},
 			Advanced: true,
 		}},
 	})
@@ -126,6 +137,7 @@ type Options struct {
 	BearerToken        string               `config:"bearer_token"`
 	BearerTokenCommand string               `config:"bearer_token_command"`
 	Enc                encoder.MultiEncoder `config:"encoding"`
+	Headers            fs.CommaSepList      `config:"headers"`
 }
 
 // Fs represents a remote webdav
@@ -301,7 +313,7 @@ func (f *Fs) readMetaDataForPath(ctx context.Context, path string, depth string)
 		return nil, fs.ErrorObjectNotFound
 	}
 	if itemIsDir(&item) {
-		return nil, fs.ErrorNotAFile
+		return nil, fs.ErrorIsDir
 	}
 	return &item.Props, nil
 }
@@ -359,6 +371,12 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 	if err != nil {
 		return nil, err
 	}
+
+	if len(opt.Headers)%2 != 0 {
+		return nil, errors.New("odd number of headers supplied")
+	}
+	fs.Debugf(nil, "found headers: %v", opt.Headers)
+
 	rootIsDir := strings.HasSuffix(root, "/")
 	root = strings.Trim(root, "/")
 
@@ -428,6 +446,9 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 			return nil, err
 		}
 	}
+	if opt.Headers != nil {
+		f.addHeaders(opt.Headers)
+	}
 	f.srv.SetErrorHandler(errorHandler)
 	err = f.setQuirks(ctx, opt.Vendor)
 	if err != nil {
@@ -444,7 +465,7 @@ func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, e
 		}
 		_, err := f.NewObject(ctx, remote)
 		if err != nil {
-			if errors.Cause(err) == fs.ErrorObjectNotFound || errors.Cause(err) == fs.ErrorNotAFile {
+			if errors.Cause(err) == fs.ErrorObjectNotFound || errors.Cause(err) == fs.ErrorIsDir {
 				// File doesn't exist so return old f
 				f.root = root
 				return f, nil
@@ -485,6 +506,15 @@ func (f *Fs) fetchBearerToken(cmd string) (string, error) {
 		return "", errors.Wrapf(err, "failed to get bearer token using %q: %s", f.opt.BearerTokenCommand, stderrString)
 	}
 	return stdoutString, nil
+}
+
+// Adds the configured headers to the request if any
+func (f *Fs) addHeaders(headers fs.CommaSepList) {
+	for i := 0; i < len(headers); i += 2 {
+		key := f.opt.Headers[i]
+		value := f.opt.Headers[i+1]
+		f.srv.SetHeader(key, value)
+	}
 }
 
 // fetch the bearer token and set it if successful

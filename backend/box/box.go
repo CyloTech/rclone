@@ -17,12 +17,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rclone/rclone/lib/encoder"
@@ -57,7 +58,6 @@ const (
 	decayConstant               = 2 // bigger for slower decay, exponential
 	rootURL                     = "https://api.box.com/2.0"
 	uploadURL                   = "https://upload.box.com/api/2.0"
-	listChunks                  = 1000     // chunk size to read directory listings
 	minUploadCutoff             = 50000000 // upload cutoff can be no lower than this
 	defaultUploadCutoff         = 50 * 1024 * 1024
 	tokenURL                    = "https://api.box.com/oauth2/token"
@@ -84,7 +84,7 @@ func init() {
 		Name:        "box",
 		Description: "Box",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, m configmap.Mapper) {
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
 			jsonFile, ok := m.Get("box_config_file")
 			boxSubType, boxSubTypeOk := m.Get("box_sub_type")
 			boxAccessToken, boxAccessTokenOk := m.Get("access_token")
@@ -93,15 +93,15 @@ func init() {
 			if ok && boxSubTypeOk && jsonFile != "" && boxSubType != "" {
 				err = refreshJWTToken(ctx, jsonFile, boxSubType, name, m)
 				if err != nil {
-					log.Fatalf("Failed to configure token with jwt authentication: %v", err)
+					return nil, errors.Wrap(err, "failed to configure token with jwt authentication")
 				}
 				// Else, if not using an access token, use oauth2
 			} else if boxAccessToken == "" || !boxAccessTokenOk {
-				err = oauthutil.Config(ctx, "box", name, m, oauthConfig, nil)
-				if err != nil {
-					log.Fatalf("Failed to configure token with oauth authentication: %v", err)
-				}
+				return oauthutil.ConfigOut("", &oauthutil.Options{
+					OAuth2Config: oauthConfig,
+				})
 			}
+			return nil, nil
 		},
 		Options: append(oauthutil.SharedOptions, []fs.Option{{
 			Name:     "root_folder_id",
@@ -110,29 +110,39 @@ func init() {
 			Advanced: true,
 		}, {
 			Name: "box_config_file",
-			Help: "Box App config.json location\nLeave blank normally." + env.ShellExpandHelp,
+			Help: "Box App config.json location\n\nLeave blank normally." + env.ShellExpandHelp,
 		}, {
 			Name: "access_token",
-			Help: "Box App Primary Access Token\nLeave blank normally.",
+			Help: "Box App Primary Access Token\n\nLeave blank normally.",
 		}, {
 			Name:    "box_sub_type",
 			Default: "user",
 			Examples: []fs.OptionExample{{
 				Value: "user",
-				Help:  "Rclone should act on behalf of a user",
+				Help:  "Rclone should act on behalf of a user.",
 			}, {
 				Value: "enterprise",
-				Help:  "Rclone should act on behalf of a service account",
+				Help:  "Rclone should act on behalf of a service account.",
 			}},
 		}, {
 			Name:     "upload_cutoff",
-			Help:     "Cutoff for switching to multipart upload (>= 50MB).",
+			Help:     "Cutoff for switching to multipart upload (>= 50 MiB).",
 			Default:  fs.SizeSuffix(defaultUploadCutoff),
 			Advanced: true,
 		}, {
 			Name:     "commit_retries",
 			Help:     "Max number of times to try committing a multipart file.",
 			Default:  100,
+			Advanced: true,
+		}, {
+			Name:     "list_chunk",
+			Default:  1000,
+			Help:     "Size of listing chunk 1-1000.",
+			Advanced: true,
+		}, {
+			Name:     "owned_by",
+			Default:  "",
+			Help:     "Only show items owned by the login (email address) passed in.",
 			Advanced: true,
 		}, {
 			Name:     config.ConfigEncoding,
@@ -157,15 +167,15 @@ func refreshJWTToken(ctx context.Context, jsonFile string, boxSubType string, na
 	jsonFile = env.ShellExpand(jsonFile)
 	boxConfig, err := getBoxConfig(jsonFile)
 	if err != nil {
-		log.Fatalf("Failed to configure token: %v", err)
+		return errors.Wrap(err, "get box config")
 	}
 	privateKey, err := getDecryptedPrivateKey(boxConfig)
 	if err != nil {
-		log.Fatalf("Failed to configure token: %v", err)
+		return errors.Wrap(err, "get decrypted private key")
 	}
 	claims, err := getClaims(boxConfig, boxSubType)
 	if err != nil {
-		log.Fatalf("Failed to configure token: %v", err)
+		return errors.Wrap(err, "get claims")
 	}
 	signingHeaders := getSigningHeaders(boxConfig)
 	queryParams := getQueryParams(boxConfig)
@@ -248,6 +258,8 @@ type Options struct {
 	Enc           encoder.MultiEncoder `config:"encoding"`
 	RootFolderID  string               `config:"root_folder_id"`
 	AccessToken   string               `config:"access_token"`
+	ListChunk     int                  `config:"list_chunk"`
+	OwnedBy       string               `config:"owned_by"`
 }
 
 // Fs represents a remote box
@@ -327,6 +339,13 @@ func shouldRetry(ctx context.Context, resp *http.Response, err error) (bool, err
 		authRetry = true
 		fs.Debugf(nil, "Should retry: %v", err)
 	}
+
+	// Box API errors which should be retries
+	if apiErr, ok := err.(*api.Error); ok && apiErr.Code == "operation_blocked_temporary" {
+		fs.Debugf(nil, "Retrying API error %v", err)
+		return true, err
+	}
+
 	return authRetry || fserrors.ShouldRetry(err) || fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
 }
 
@@ -341,7 +360,7 @@ func (f *Fs) readMetaDataForPath(ctx context.Context, path string) (info *api.It
 		return nil, err
 	}
 
-	found, err := f.listAll(ctx, directoryID, false, true, func(item *api.Item) bool {
+	found, err := f.listAll(ctx, directoryID, false, true, true, func(item *api.Item) bool {
 		if strings.EqualFold(item.Name, leaf) {
 			info = item
 			return true
@@ -516,7 +535,7 @@ func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
 // FindLeaf finds a directory of name leaf in the folder with ID pathID
 func (f *Fs) FindLeaf(ctx context.Context, pathID, leaf string) (pathIDOut string, found bool, err error) {
 	// Find the leaf in pathID
-	found, err = f.listAll(ctx, pathID, true, false, func(item *api.Item) bool {
+	found, err = f.listAll(ctx, pathID, true, false, true, func(item *api.Item) bool {
 		if strings.EqualFold(item.Name, leaf) {
 			pathIDOut = item.ID
 			return true
@@ -572,17 +591,20 @@ type listAllFn func(*api.Item) bool
 // Lists the directory required calling the user function on each item found
 //
 // If the user fn ever returns true then it early exits with found = true
-func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, filesOnly bool, fn listAllFn) (found bool, err error) {
+func (f *Fs) listAll(ctx context.Context, dirID string, directoriesOnly bool, filesOnly bool, activeOnly bool, fn listAllFn) (found bool, err error) {
 	opts := rest.Opts{
 		Method:     "GET",
 		Path:       "/folders/" + dirID + "/items",
 		Parameters: fieldsValue(),
 	}
-	opts.Parameters.Set("limit", strconv.Itoa(listChunks))
-	offset := 0
+	opts.Parameters.Set("limit", strconv.Itoa(f.opt.ListChunk))
+	opts.Parameters.Set("usemarker", "true")
+	var marker *string
 OUTER:
 	for {
-		opts.Parameters.Set("offset", strconv.Itoa(offset))
+		if marker != nil {
+			opts.Parameters.Set("marker", *marker)
+		}
 
 		var result api.FolderItems
 		var resp *http.Response
@@ -607,7 +629,10 @@ OUTER:
 				fs.Debugf(f, "Ignoring %q - unknown type %q", item.Name, item.Type)
 				continue
 			}
-			if item.ItemStatus != api.ItemStatusActive {
+			if activeOnly && item.ItemStatus != api.ItemStatusActive {
+				continue
+			}
+			if f.opt.OwnedBy != "" && f.opt.OwnedBy != item.OwnedBy.Login {
 				continue
 			}
 			item.Name = f.opt.Enc.ToStandardName(item.Name)
@@ -616,8 +641,8 @@ OUTER:
 				break OUTER
 			}
 		}
-		offset += result.Limit
-		if offset >= result.TotalCount {
+		marker = result.NextMarker
+		if marker == nil {
 			break
 		}
 	}
@@ -639,7 +664,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 		return nil, err
 	}
 	var iErr error
-	_, err = f.listAll(ctx, directoryID, false, false, func(info *api.Item) bool {
+	_, err = f.listAll(ctx, directoryID, false, false, true, func(info *api.Item) bool {
 		remote := path.Join(dir, info.Name)
 		if info.Type == api.ItemTypeFolder {
 			// cache the directory ID for later lookups
@@ -686,22 +711,80 @@ func (f *Fs) createObject(ctx context.Context, remote string, modTime time.Time,
 	return o, leaf, directoryID, nil
 }
 
+// preUploadCheck checks to see if a file can be uploaded
+//
+// It returns "", nil if the file is good to go
+// It returns "ID", nil if the file must be updated
+func (f *Fs) preUploadCheck(ctx context.Context, leaf, directoryID string, size int64) (ID string, err error) {
+	check := api.PreUploadCheck{
+		Name: f.opt.Enc.FromStandardName(leaf),
+		Parent: api.Parent{
+			ID: directoryID,
+		},
+	}
+	if size >= 0 {
+		check.Size = &size
+	}
+	opts := rest.Opts{
+		Method: "OPTIONS",
+		Path:   "/files/content/",
+	}
+	var result api.PreUploadCheckResponse
+	var resp *http.Response
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.srv.CallJSON(ctx, &opts, &check, &result)
+		return shouldRetry(ctx, resp, err)
+	})
+	if err != nil {
+		if apiErr, ok := err.(*api.Error); ok && apiErr.Code == "item_name_in_use" {
+			var conflict api.PreUploadCheckConflict
+			err = json.Unmarshal(apiErr.ContextInfo, &conflict)
+			if err != nil {
+				return "", errors.Wrap(err, "pre-upload check: JSON decode failed")
+			}
+			if conflict.Conflicts.Type != api.ItemTypeFile {
+				return "", errors.Wrap(err, "pre-upload check: can't overwrite non file with file")
+			}
+			return conflict.Conflicts.ID, nil
+		}
+		return "", errors.Wrap(err, "pre-upload check")
+	}
+	return "", nil
+}
+
 // Put the object
 //
 // Copy the reader in to the new object which is returned
 //
 // The new object may have been created if an error is returned
 func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
-	existingObj, err := f.newObjectWithInfo(ctx, src.Remote(), nil)
-	switch err {
-	case nil:
-		return existingObj, existingObj.Update(ctx, in, src, options...)
-	case fs.ErrorObjectNotFound:
-		// Not found so create it
-		return f.PutUnchecked(ctx, in, src)
-	default:
+	// If directory doesn't exist, file doesn't exist so can upload
+	remote := src.Remote()
+	leaf, directoryID, err := f.dirCache.FindPath(ctx, remote, false)
+	if err != nil {
+		if err == fs.ErrorDirNotFound {
+			return f.PutUnchecked(ctx, in, src, options...)
+		}
 		return nil, err
 	}
+
+	// Preflight check the upload, which returns the ID if the
+	// object already exists
+	ID, err := f.preUploadCheck(ctx, leaf, directoryID, src.Size())
+	if err != nil {
+		return nil, err
+	}
+	if ID == "" {
+		return f.PutUnchecked(ctx, in, src, options...)
+	}
+
+	// If object exists then create a skeleton one with just id
+	o := &Object{
+		fs:     f,
+		remote: remote,
+		id:     ID,
+	}
+	return o, o.Update(ctx, in, src, options...)
 }
 
 // PutStream uploads to the remote path with the modTime given of indeterminate size
@@ -1035,45 +1118,36 @@ func (f *Fs) deletePermanently(ctx context.Context, itemType, id string) error {
 
 // CleanUp empties the trash
 func (f *Fs) CleanUp(ctx context.Context) (err error) {
-	opts := rest.Opts{
-		Method: "GET",
-		Path:   "/folders/trash/items",
-		Parameters: url.Values{
-			"fields": []string{"type", "id"},
-		},
-	}
-	opts.Parameters.Set("limit", strconv.Itoa(listChunks))
-	offset := 0
-	for {
-		opts.Parameters.Set("offset", strconv.Itoa(offset))
-
-		var result api.FolderItems
-		var resp *http.Response
-		err = f.pacer.Call(func() (bool, error) {
-			resp, err = f.srv.CallJSON(ctx, &opts, nil, &result)
-			return shouldRetry(ctx, resp, err)
-		})
-		if err != nil {
-			return errors.Wrap(err, "couldn't list trash")
-		}
-		for i := range result.Entries {
-			item := &result.Entries[i]
-			if item.Type == api.ItemTypeFolder || item.Type == api.ItemTypeFile {
+	var (
+		deleteErrors       = int64(0)
+		concurrencyControl = make(chan struct{}, fs.GetConfig(ctx).Checkers)
+		wg                 sync.WaitGroup
+	)
+	_, err = f.listAll(ctx, "trash", false, false, false, func(item *api.Item) bool {
+		if item.Type == api.ItemTypeFolder || item.Type == api.ItemTypeFile {
+			wg.Add(1)
+			concurrencyControl <- struct{}{}
+			go func() {
+				defer func() {
+					<-concurrencyControl
+					wg.Done()
+				}()
 				err := f.deletePermanently(ctx, item.Type, item.ID)
 				if err != nil {
-					return errors.Wrap(err, "failed to delete file")
+					fs.Errorf(f, "failed to delete trash item %q (%q): %v", item.Name, item.ID, err)
+					atomic.AddInt64(&deleteErrors, 1)
 				}
-			} else {
-				fs.Debugf(f, "Ignoring %q - unknown type %q", item.Name, item.Type)
-				continue
-			}
+			}()
+		} else {
+			fs.Debugf(f, "Ignoring %q - unknown type %q", item.Name, item.Type)
 		}
-		offset += result.Limit
-		if offset >= result.TotalCount {
-			break
-		}
+		return false
+	})
+	wg.Wait()
+	if deleteErrors != 0 {
+		return errors.Errorf("failed to delete %d trash items", deleteErrors)
 	}
-	return
+	return err
 }
 
 // DirCacheFlush resets the directory cache - used in testing as an
@@ -1127,6 +1201,9 @@ func (o *Object) Size() int64 {
 
 // setMetaData sets the metadata from info
 func (o *Object) setMetaData(info *api.Item) (err error) {
+	if info.Type == api.ItemTypeFolder {
+		return fs.ErrorIsDir
+	}
 	if info.Type != api.ItemTypeFile {
 		return errors.Wrapf(fs.ErrorNotAFile, "%q is %q", o.remote, info.Type)
 	}
@@ -1228,7 +1305,7 @@ func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.Read
 
 // upload does a single non-multipart upload
 //
-// This is recommended for less than 50 MB of content
+// This is recommended for less than 50 MiB of content
 func (o *Object) upload(ctx context.Context, in io.Reader, leaf, directoryID string, modTime time.Time, options ...fs.OpenOption) (err error) {
 	upload := api.UploadFile{
 		Name:              o.fs.opt.Enc.FromStandardName(leaf),

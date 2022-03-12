@@ -1,3 +1,4 @@
+//go:build !noselfupdate
 // +build !noselfupdate
 
 package selfupdate
@@ -50,10 +51,10 @@ var Opt = Options{}
 func init() {
 	cmd.Root.AddCommand(cmdSelfUpdate)
 	cmdFlags := cmdSelfUpdate.Flags()
-	flags.BoolVarP(cmdFlags, &Opt.Check, "check", "", Opt.Check, "Check for latest release, do not download.")
+	flags.BoolVarP(cmdFlags, &Opt.Check, "check", "", Opt.Check, "Check for latest release, do not download")
 	flags.StringVarP(cmdFlags, &Opt.Output, "output", "", Opt.Output, "Save the downloaded binary at a given path (default: replace running binary)")
 	flags.BoolVarP(cmdFlags, &Opt.Stable, "stable", "", Opt.Stable, "Install stable release (this is the default)")
-	flags.BoolVarP(cmdFlags, &Opt.Beta, "beta", "", Opt.Beta, "Install beta release.")
+	flags.BoolVarP(cmdFlags, &Opt.Beta, "beta", "", Opt.Beta, "Install beta release")
 	flags.StringVarP(cmdFlags, &Opt.Version, "version", "", Opt.Version, "Install the given rclone version (default: latest)")
 	flags.StringVarP(cmdFlags, &Opt.Package, "package", "", Opt.Package, "Package format: zip|deb|rpm (default: zip)")
 }
@@ -158,7 +159,7 @@ func InstallUpdate(ctx context.Context, opt *Options) error {
 
 	oldVersion := fs.Version
 	if newVersion == oldVersion {
-		fmt.Println("rclone is up to date")
+		fs.Logf(nil, "rclone is up to date")
 		return nil
 	}
 
@@ -169,7 +170,7 @@ func InstallUpdate(ctx context.Context, opt *Options) error {
 		} else {
 			err := installPackage(ctx, opt.Beta, newVersion, siteURL, opt.Package)
 			if err == nil {
-				fmt.Printf("Successfully updated rclone package from version %s to version %s\n", oldVersion, newVersion)
+				fs.Logf(nil, "Successfully updated rclone package from version %s to version %s", oldVersion, newVersion)
 			}
 			return err
 		}
@@ -221,7 +222,7 @@ func InstallUpdate(ctx context.Context, opt *Options) error {
 
 	err = replaceExecutable(targetFile, newFile, savedFile)
 	if err == nil {
-		fmt.Printf("Successfully updated rclone from version %s to version %s\n", oldVersion, newVersion)
+		fs.Logf(nil, "Successfully updated rclone from version %s to version %s", oldVersion, newVersion)
 	}
 	return err
 }
@@ -297,7 +298,7 @@ func replaceExecutable(targetFile, newFile, savedFile string) error {
 			}
 		}
 		if saveErr == nil {
-			fmt.Printf("The old executable was saved as %s\n", savedFile)
+			fs.Infof(nil, "The old executable was saved as %s", savedFile)
 			err = nil
 		}
 	}
@@ -337,8 +338,8 @@ func makeRandomExeName(baseName, extension string) (string, error) {
 func downloadUpdate(ctx context.Context, beta bool, version, siteURL, newFile, packageFormat string) error {
 	osName := runtime.GOOS
 	arch := runtime.GOARCH
-	if arch == "darwin" {
-		arch = "osx"
+	if osName == "darwin" {
+		osName = "osx"
 	}
 
 	archiveFilename := fmt.Sprintf("rclone-%s-%s-%s.%s", version, osName, arch, packageFormat)

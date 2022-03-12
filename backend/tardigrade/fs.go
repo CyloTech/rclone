@@ -1,3 +1,4 @@
+//go:build !plan9
 // +build !plan9
 
 // Package tardigrade provides an interface to Tardigrade decentralized object storage.
@@ -7,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"path"
 	"strings"
 	"time"
@@ -42,19 +42,19 @@ func init() {
 		Name:        "tardigrade",
 		Description: "Tardigrade Decentralized Cloud Storage",
 		NewFs:       NewFs,
-		Config: func(ctx context.Context, name string, configMapper configmap.Mapper) {
-			provider, _ := configMapper.Get(fs.ConfigProvider)
+		Config: func(ctx context.Context, name string, m configmap.Mapper, configIn fs.ConfigIn) (*fs.ConfigOut, error) {
+			provider, _ := m.Get(fs.ConfigProvider)
 
 			config.FileDeleteKey(name, fs.ConfigProvider)
 
 			if provider == newProvider {
-				satelliteString, _ := configMapper.Get("satellite_address")
-				apiKey, _ := configMapper.Get("api_key")
-				passphrase, _ := configMapper.Get("passphrase")
+				satelliteString, _ := m.Get("satellite_address")
+				apiKey, _ := m.Get("api_key")
+				passphrase, _ := m.Get("passphrase")
 
 				// satelliteString contains always default and passphrase can be empty
 				if apiKey == "" {
-					return
+					return nil, nil
 				}
 
 				satellite, found := satMap[satelliteString]
@@ -64,22 +64,23 @@ func init() {
 
 				access, err := uplink.RequestAccessWithPassphrase(context.TODO(), satellite, apiKey, passphrase)
 				if err != nil {
-					log.Fatalf("Couldn't create access grant: %v", err)
+					return nil, errors.Wrap(err, "couldn't create access grant")
 				}
 
 				serializedAccess, err := access.Serialize()
 				if err != nil {
-					log.Fatalf("Couldn't serialize access grant: %v", err)
+					return nil, errors.Wrap(err, "couldn't serialize access grant")
 				}
-				configMapper.Set("satellite_address", satellite)
-				configMapper.Set("access_grant", serializedAccess)
+				m.Set("satellite_address", satellite)
+				m.Set("access_grant", serializedAccess)
 			} else if provider == existingProvider {
 				config.FileDeleteKey(name, "satellite_address")
 				config.FileDeleteKey(name, "api_key")
 				config.FileDeleteKey(name, "passphrase")
 			} else {
-				log.Fatalf("Invalid provider type: %s", provider)
+				return nil, errors.Errorf("invalid provider type: %s", provider)
 			}
+			return nil, nil
 		},
 		Options: []fs.Option{
 			{
@@ -97,13 +98,13 @@ func init() {
 				}},
 			{
 				Name:     "access_grant",
-				Help:     "Access Grant.",
+				Help:     "Access grant.",
 				Required: false,
 				Provider: "existing",
 			},
 			{
 				Name:     "satellite_address",
-				Help:     "Satellite Address. Custom satellite address should match the format: `<nodeid>@<address>:<port>`.",
+				Help:     "Satellite address.\n\nCustom satellite address should match the format: `<nodeid>@<address>:<port>`.",
 				Required: false,
 				Provider: newProvider,
 				Default:  "us-central-1.tardigrade.io",
@@ -121,13 +122,13 @@ func init() {
 			},
 			{
 				Name:     "api_key",
-				Help:     "API Key.",
+				Help:     "API key.",
 				Required: false,
 				Provider: newProvider,
 			},
 			{
 				Name:     "passphrase",
-				Help:     "Encryption Passphrase. To access existing objects enter passphrase used for uploading.",
+				Help:     "Encryption passphrase.\n\nTo access existing objects enter passphrase used for uploading.",
 				Required: false,
 				Provider: newProvider,
 			},
