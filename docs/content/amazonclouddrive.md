@@ -36,7 +36,7 @@ which pass through it.
 
 Since rclone doesn't currently have its own Amazon Drive credentials
 so you will either need to have your own `client_id` and
-`client_secret` with Amazon Drive, or use a third party oauth proxy
+`client_secret` with Amazon Drive, or use a third-party oauth proxy
 in which case you will need to enter `client_id`, `client_secret`,
 `auth_url` and `token_url`.
 
@@ -53,7 +53,7 @@ Here is an example of how to make a remote called `remote`.  First run:
 This will guide you through an interactive setup process:
 
 ```
-No remotes found - make a new one
+No remotes found, make a new one?
 n) New remote
 r) Rename remote
 c) Copy remote
@@ -148,7 +148,7 @@ as they can't be used in JSON strings.
 Any files you delete with rclone will end up in the trash.  Amazon
 don't provide an API to permanently delete files, nor to empty the
 trash, so you will have to do that with one of Amazon's apps or via
-the Amazon Drive website. As of November 17, 2016, files are 
+the Amazon Drive website. As of November 17, 2016, files are
 automatically deleted by Amazon from the trash after 30 days.
 
 ### Using with non `.com` Amazon accounts

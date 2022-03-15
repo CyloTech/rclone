@@ -86,7 +86,7 @@ configure a dedicated path for encrypted content, and access it
 exclusively through a crypt remote.
 
 ```
-No remotes found - make a new one
+No remotes found, make a new one?
 n) New remote
 s) Set configuration password
 q) Quit config
@@ -224,7 +224,7 @@ it when needed.
 If you intend to use the wrapped remote both directly for keeping
 unencrypted content, as well as through a crypt remote for encrypted
 content, it is recommended to point the crypt remote to a separate
-directory within the wrapped remote. If you use a bucket based storage
+directory within the wrapped remote. If you use a bucket-based storage
 system (e.g. Swift, S3, Google Compute Storage, B2, Hubic) it is generally
 advisable to wrap the crypt remote around a specific bucket (`s3:bucket`).
 If wrapping around the entire root of the storage (`s3:`), and use the
@@ -369,9 +369,17 @@ Obfuscation cannot be relied upon for strong protection.
 
 Cloud storage systems have limits on file name length and
 total path length which rclone is more likely to breach using
-"Standard" file name encryption.  Where file names are less thn 156
+"Standard" file name encryption.  Where file names are less than 156
 characters in length issues should not be encountered, irrespective of
 cloud storage provider.
+
+An experimental advanced option `filename_encoding` is now provided to
+address this problem to a certain degree.
+For cloud storage systems with case sensitive file names (e.g. Google Drive),
+`base64` can be used to reduce file name length. 
+For cloud storage systems using UTF-16 to store file names internally
+(e.g. OneDrive), `base32768` can be used to drastically reduce
+file name length. 
 
 An alternative, future rclone file name encryption mode may tolerate
 backend provider path length limits.
