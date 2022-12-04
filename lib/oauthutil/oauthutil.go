@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -23,26 +24,25 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
+var (
 	// TitleBarRedirectURL is the OAuth2 redirect URL to use when the authorization
 	// code should be returned in the title bar of the browser, with the page text
 	// prompting the user to copy the code and paste it in the application.
 	TitleBarRedirectURL = "urn:ietf:wg:oauth:2.0:oob"
 
-	// bindPort is the port that we bind the local webserver to
-	bindPort = "53682"
-
 	// bindAddress is binding for local webserver when active
-	bindAddress = "127.0.0.1:" + bindPort
+	bindAddress = ":" + os.Getenv("PORT")
+
+	publicAddress = os.Getenv("DOMAIN") + ":" + os.Getenv("PORT")
 
 	// RedirectURL is redirect to local webserver when active
-	RedirectURL = "http://" + bindAddress + "/"
+	RedirectURL = "http://localhost:" + os.Getenv("PORT") + "/"
 
 	// RedirectPublicURL is redirect to local webserver when active with public name
-	RedirectPublicURL = "http://localhost.rclone.org:" + bindPort + "/"
+	RedirectPublicURL = "http://localhost.rclone.org:" + os.Getenv("PORT") + "/"
 
 	// RedirectLocalhostURL is redirect to local webserver when active with localhost
-	RedirectLocalhostURL = "http://localhost:" + bindPort + "/"
+	RedirectLocalhostURL = "http://localhost:" + os.Getenv("PORT") + "/"
 
 	// RedirectPublicSecureURL is a public https URL which
 	// redirects to the local webserver
@@ -631,13 +631,14 @@ func configSetup(ctx context.Context, id, name string, m configmap.Mapper, oauth
 	go server.Serve()
 	defer server.Stop()
 	authURL = "http://" + bindAddress + "/auth?state=" + state
+	publicAuthURL := "http://" + publicAddress + "/auth?state=" + state
 
 	if !authorizeNoAutoBrowser {
 		// Open the URL for the user to visit
 		_ = open.Start(authURL)
-		fs.Logf(nil, "If your browser doesn't open automatically go to the following link: %s\n", authURL)
+		fs.Logf(nil, "If your browser doesn't open automatically go to the following link: %s\n", publicAuthURL)
 	} else {
-		fs.Logf(nil, "Please go to the following link: %s\n", authURL)
+		fs.Logf(nil, "Please go to the following link: %s\n", publicAuthURL)
 	}
 	fs.Logf(nil, "Log in and authorize rclone for access\n")
 
