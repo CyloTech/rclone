@@ -65,7 +65,7 @@ HTTP is provided primarily for debugging purposes.`,
 			Name: "host",
 			Help: `Domain+path of NetStorage host to connect to.
 
-Format should be <domain>/<internal folders>`,
+Format should be ` + "`<domain>/<internal folders>`",
 			Required: true,
 		}, {
 			Name:     "account",
@@ -94,7 +94,7 @@ files stored in any sub-directories that may exist.`,
 	Long: `The desired path location (including applicable sub-directories) ending in
 the object that will be the target of the symlink (for example, /links/mylink).
 Include the file extension for the object, if applicable.
-rclone backend symlink <src> <path>`,
+` + "`rclone backend symlink <src> <path>`",
 },
 }
 
@@ -118,7 +118,7 @@ type Fs struct {
 	filetype         string            // dir, file or symlink
 	dirscreated      map[string]bool   // if implicit dir has been created already
 	dirscreatedMutex sync.Mutex        // mutex to protect dirscreated
-	statcache        map[string][]File // cache successfull stat requests
+	statcache        map[string][]File // cache successful stat requests
 	statcacheMutex   sync.RWMutex      // RWMutex to protect statcache
 }
 
@@ -424,7 +424,7 @@ func (f *Fs) getFileName(file *File) string {
 func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
 	if f.filetype == "" {
 		// This happens in two scenarios.
-		// 1. NewFs is done on a non-existent object, then later rclone attempts to List/ListR this NewFs.
+		// 1. NewFs is done on a nonexistent object, then later rclone attempts to List/ListR this NewFs.
 		// 2. List/ListR is called from the context of test_all and not the regular rclone binary.
 		err := f.initFs(ctx, dir)
 		if err != nil {
@@ -488,7 +488,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
 	if f.filetype == "" {
 		// This happens in two scenarios.
-		// 1. NewFs is done on a non-existent object, then later rclone attempts to List/ListR this NewFs.
+		// 1. NewFs is done on a nonexistent object, then later rclone attempts to List/ListR this NewFs.
 		// 2. List/ListR is called from the context of test_all and not the regular rclone binary.
 		err := f.initFs(ctx, dir)
 		if err != nil {
@@ -903,22 +903,20 @@ func (f *Fs) netStorageStatRequest(ctx context.Context, URL string, directory bo
 		files = statResp.Files
 		f.setStatCache(URL, files)
 	}
-	if files != nil {
-		// Multiple objects can be returned with the "slash=both" option,
-		// when file/symlink/directory has the same name
-		for i := range files {
-			if files[i].Type == "symlink" {
-				// Add .rclonelink suffix to allow local backend code to convert to a symlink.
-				files[i].Name += ".rclonelink"
-				fs.Infof(nil, "Converting a symlink to the rclonelink on the stat request %s", files[i].Name)
-			}
-			entrywanted := (directory && files[i].Type == "dir") ||
-				(!directory && files[i].Type != "dir")
-			if entrywanted {
-				filestamp := files[0]
-				files[0] = files[i]
-				files[i] = filestamp
-			}
+	// Multiple objects can be returned with the "slash=both" option,
+	// when file/symlink/directory has the same name
+	for i := range files {
+		if files[i].Type == "symlink" {
+			// Add .rclonelink suffix to allow local backend code to convert to a symlink.
+			files[i].Name += ".rclonelink"
+			fs.Infof(nil, "Converting a symlink to the rclonelink on the stat request %s", files[i].Name)
+		}
+		entrywanted := (directory && files[i].Type == "dir") ||
+			(!directory && files[i].Type != "dir")
+		if entrywanted {
+			filestamp := files[0]
+			files[0] = files[i]
+			files[i] = filestamp
 		}
 	}
 	return files, nil

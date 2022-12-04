@@ -1,3 +1,4 @@
+// Package mountlib provides the mount command.
 package mountlib
 
 import (
@@ -76,6 +77,17 @@ type MountPoint struct {
 	MountFn    MountFn
 	UnmountFn  UnmountFn
 	ErrChan    <-chan error
+}
+
+// NewMountPoint makes a new mounting structure
+func NewMountPoint(mount MountFn, mountPoint string, f fs.Fs, mountOpt *Options, vfsOpt *vfscommon.Options) *MountPoint {
+	return &MountPoint{
+		MountFn:    mount,
+		MountPoint: mountPoint,
+		Fs:         f,
+		MountOpt:   *mountOpt,
+		VFSOpt:     *vfsOpt,
+	}
 }
 
 // Global constants
@@ -167,14 +179,7 @@ func NewMountCommand(commandName string, hidden bool, mount MountFn) *cobra.Comm
 				defer cmd.StartStats()()
 			}
 
-			mnt := &MountPoint{
-				MountFn:    mount,
-				MountPoint: args[1],
-				Fs:         cmd.NewFsDir(args),
-				MountOpt:   Opt,
-				VFSOpt:     vfsflags.Opt,
-			}
-
+			mnt := NewMountPoint(mount, args[1], cmd.NewFsDir(args), &Opt, &vfsflags.Opt)
 			daemon, err := mnt.Mount()
 
 			// Wait for foreground mount, if any...
@@ -233,7 +238,7 @@ func (m *MountPoint) Mount() (daemon *os.Process, err error) {
 		return nil, err
 	}
 
-	if err = m.CheckAllowings(); err != nil {
+	if err = m.CheckAllowed(); err != nil {
 		return nil, err
 	}
 	m.SetVolumeName(m.MountOpt.VolumeName)
@@ -253,6 +258,7 @@ func (m *MountPoint) Mount() (daemon *os.Process, err error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to mount FUSE fs: %w", err)
 	}
+	m.MountedOn = time.Now()
 	return nil, nil
 }
 

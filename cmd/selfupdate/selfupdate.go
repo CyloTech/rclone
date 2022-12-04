@@ -1,6 +1,7 @@
 //go:build !noselfupdate
 // +build !noselfupdate
 
+// Package selfupdate provides the selfupdate command.
 package selfupdate
 
 import (
@@ -200,9 +201,7 @@ func InstallUpdate(ctx context.Context, opt *Options) error {
 	savedFile := ""
 	if runtime.GOOS == "windows" {
 		savedFile = targetFile
-		if strings.HasSuffix(savedFile, ".exe") {
-			savedFile = savedFile[:len(savedFile)-4]
-		}
+		savedFile = strings.TrimSuffix(savedFile, ".exe")
 		savedFile += ".old.exe"
 	}
 
@@ -319,9 +318,7 @@ func makeRandomExeName(baseName, extension string) (string, error) {
 	const maxAttempts = 5
 
 	if runtime.GOOS == "windows" {
-		if strings.HasSuffix(baseName, ".exe") {
-			baseName = baseName[:len(baseName)-4]
-		}
+		baseName = strings.TrimSuffix(baseName, ".exe")
 		extension += ".exe"
 	}
 

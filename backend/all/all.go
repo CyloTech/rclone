@@ -1,3 +1,4 @@
+// Package all imports all the backends
 package all
 
 import (
@@ -9,6 +10,7 @@ import (
 	_ "github.com/rclone/rclone/backend/box"
 	_ "github.com/rclone/rclone/backend/cache"
 	_ "github.com/rclone/rclone/backend/chunker"
+	_ "github.com/rclone/rclone/backend/combine"
 	_ "github.com/rclone/rclone/backend/compress"
 	_ "github.com/rclone/rclone/backend/crypt"
 	_ "github.com/rclone/rclone/backend/drive"
@@ -20,8 +22,9 @@ import (
 	_ "github.com/rclone/rclone/backend/googlephotos"
 	_ "github.com/rclone/rclone/backend/hasher"
 	_ "github.com/rclone/rclone/backend/hdfs"
+	_ "github.com/rclone/rclone/backend/hidrive"
 	_ "github.com/rclone/rclone/backend/http"
-	_ "github.com/rclone/rclone/backend/hubic"
+	_ "github.com/rclone/rclone/backend/internetarchive"
 	_ "github.com/rclone/rclone/backend/jottacloud"
 	_ "github.com/rclone/rclone/backend/koofr"
 	_ "github.com/rclone/rclone/backend/local"
@@ -32,6 +35,7 @@ import (
 	_ "github.com/rclone/rclone/backend/netstorage"
 	_ "github.com/rclone/rclone/backend/onedrive"
 	_ "github.com/rclone/rclone/backend/opendrive"
+	_ "github.com/rclone/rclone/backend/oracleobjectstorage"
 	_ "github.com/rclone/rclone/backend/pcloud"
 	_ "github.com/rclone/rclone/backend/premiumizeme"
 	_ "github.com/rclone/rclone/backend/putio"
@@ -41,6 +45,7 @@ import (
 	_ "github.com/rclone/rclone/backend/sftp"
 	_ "github.com/rclone/rclone/backend/sharefile"
 	_ "github.com/rclone/rclone/backend/sia"
+	_ "github.com/rclone/rclone/backend/smb"
 	_ "github.com/rclone/rclone/backend/storj"
 	_ "github.com/rclone/rclone/backend/sugarsync"
 	_ "github.com/rclone/rclone/backend/swift"

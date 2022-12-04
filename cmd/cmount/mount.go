@@ -1,12 +1,10 @@
+//go:build cmount && ((linux && cgo) || (darwin && cgo) || (freebsd && cgo) || windows)
+// +build cmount
+// +build linux,cgo darwin,cgo freebsd,cgo windows
+
 // Package cmount implements a FUSE mounting system for rclone remotes.
 //
 // This uses the cgo based cgofuse library
-
-//go:build cmount && cgo && (linux || darwin || freebsd || windows)
-// +build cmount
-// +build cgo
-// +build linux darwin freebsd windows
-
 package cmount
 
 import (
@@ -18,12 +16,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/billziss-gh/cgofuse/fuse"
 	"github.com/rclone/rclone/cmd/mountlib"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/lib/atexit"
 	"github.com/rclone/rclone/lib/buildinfo"
 	"github.com/rclone/rclone/vfs"
+	"github.com/winfsp/cgofuse/fuse"
 )
 
 func init() {

@@ -1,3 +1,4 @@
+// Package config provides the config command.
 package config
 
 import (
@@ -139,7 +140,7 @@ are 100% certain you are already passing obscured passwords then use
 |rclone config password| command.
 
 The flag |--non-interactive| is for use by applications that wish to
-configure rclone themeselves, rather than using rclone's text based
+configure rclone themselves, rather than using rclone's text based
 configuration questions. If this flag is set, and rclone needs to ask
 the user a question, a JSON blob will be returned with the question in
 it.
@@ -402,7 +403,7 @@ To reconnect use "rclone config reconnect".
 		}
 		err := doDisconnect(context.Background())
 		if err != nil {
-			return fmt.Errorf("Disconnect call failed: %w", err)
+			return fmt.Errorf("disconnect call failed: %w", err)
 		}
 		return nil
 	},

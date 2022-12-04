@@ -1,3 +1,4 @@
+// Package webgui provides plugin functionality to the Web GUI.
 package webgui
 
 import (
@@ -226,14 +227,14 @@ func (p *Plugins) GetPluginByName(name string) (out *PackageJSON, err error) {
 
 }
 
-// getAuthorRepoBranchGithub gives author, repoName and branch from a github.com url
+// getAuthorRepoBranchGitHub gives author, repoName and branch from a github.com url
+//
 //	url examples:
 //	https://github.com/rclone/rclone-webui-react/
 //	http://github.com/rclone/rclone-webui-react
 //	https://github.com/rclone/rclone-webui-react/tree/caman-js
-// 	github.com/rclone/rclone-webui-react
-//
-func getAuthorRepoBranchGithub(url string) (author string, repoName string, branch string, err error) {
+//	github.com/rclone/rclone-webui-react
+func getAuthorRepoBranchGitHub(url string) (author string, repoName string, branch string, err error) {
 	repoURL := url
 	repoURL = strings.Replace(repoURL, "https://", "", 1)
 	repoURL = strings.Replace(repoURL, "http://", "", 1)
@@ -293,7 +294,7 @@ func ServePluginOK(w http.ResponseWriter, r *http.Request, pluginsMatchResult []
 	return true
 }
 
-var referrerPathReg = regexp.MustCompile("^(https?):\\/\\/(.+):([0-9]+)?\\/(.*)\\/?\\?(.*)$")
+var referrerPathReg = regexp.MustCompile(`^(https?):\/\/(.+):([0-9]+)?\/(.*)\/?\?(.*)$`)
 
 // ServePluginWithReferrerOK check if redirectReferrer is set for the referred a plugin, if yes,
 // sends a redirect to actual url. This function is useful for plugins to refer to absolute paths when
@@ -306,9 +307,9 @@ func ServePluginWithReferrerOK(w http.ResponseWriter, r *http.Request, path stri
 	referrer := r.Referer()
 	referrerPathMatch := referrerPathReg.FindStringSubmatch(referrer)
 
-	if referrerPathMatch != nil && len(referrerPathMatch) > 3 {
+	if len(referrerPathMatch) > 3 {
 		referrerPluginMatch := PluginsMatch.FindStringSubmatch(referrerPathMatch[4])
-		if referrerPluginMatch != nil && len(referrerPluginMatch) > 2 {
+		if len(referrerPluginMatch) > 2 {
 			pluginKey := fmt.Sprintf("%s/%s", referrerPluginMatch[1], referrerPluginMatch[2])
 			currentPlugin, err := loadedPlugins.GetPluginByName(pluginKey)
 			if err != nil {

@@ -1,6 +1,7 @@
-//go:generate go run assets_generate.go
+// Package data provides common functionality for http servers
 // The "go:generate" directive compiles static assets by running assets_generate.go
-
+//
+//go:generate go run assets_generate.go
 package data
 
 import (
@@ -19,8 +20,8 @@ import (
 var Help = `
 #### Template
 
---template allows a user to specify a custom markup template for http
-and webdav serve functions.  The server exports the following markup
+` + "`--template`" + ` allows a user to specify a custom markup template for HTTP
+and WebDAV serve functions.  The server exports the following markup
 to be used within the template to server pages:
 
 | Parameter   | Description |
@@ -58,7 +59,7 @@ func AfterEpoch(t time.Time) bool {
 	return t.After(time.Time{})
 }
 
-// GetTemplate returns the HTML template for serving directories via HTTP/Webdav
+// GetTemplate returns the HTML template for serving directories via HTTP/WebDAV
 func GetTemplate(tmpl string) (tpl *template.Template, err error) {
 	var templateString string
 	if tmpl == "" {

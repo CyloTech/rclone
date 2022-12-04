@@ -1,3 +1,4 @@
+// Package ls provides the ls command.
 package ls
 
 import (
@@ -27,7 +28,7 @@ var commandDefinition = &cobra.Command{
 	Long: `
 rclone listremotes lists all the available remotes from the config file.
 
-When uses with the -l flag it lists the types too.
+When used with the ` + "`--long`" + ` flag it lists the types too.
 `,
 	Run: func(command *cobra.Command, args []string) {
 		cmd.CheckArgs(0, 0, command, args)
