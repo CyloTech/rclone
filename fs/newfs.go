@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/base64"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,7 +119,7 @@ func ConfigString(f Fs) string {
 //
 // No cleanup is performed, the caller must call Purge on the Fs themselves.
 func TemporaryLocalFs(ctx context.Context) (Fs, error) {
-	path, err := ioutil.TempDir("", "rclone-spool")
+	path, err := os.MkdirTemp("", "rclone-spool")
 	if err == nil {
 		err = os.Remove(path)
 	}
