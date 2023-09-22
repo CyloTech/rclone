@@ -103,6 +103,10 @@ By default this will serve files without needing a login.
 You can either use an htpasswd file which can take lots of users, or
 set a single username and password with the `--user` and `--pass` flags.
 
+If no static users are configured by either of the above methods, and client
+certificates are required by the `--client-ca` flag passed to the server, the
+client certificate common name will be considered as the username.
+
 Use `--htpasswd /path/to/htpasswd` to provide an htpasswd file.  This is
 in standard apache format and supports MD5, SHA1 and BCrypt for basic
 authentication.  Bcrypt is recommended.
@@ -195,7 +199,7 @@ find that you need one or the other or both.
 
     --cache-dir string                   Directory rclone will use for caching.
     --vfs-cache-mode CacheMode           Cache mode off|minimal|writes|full (default off)
-    --vfs-cache-max-age duration         Max age of objects in the cache (default 1h0m0s)
+    --vfs-cache-max-age duration         Max time since last access of objects in the cache (default 1h0m0s)
     --vfs-cache-max-size SizeSuffix      Max total size of objects in the cache (default off)
     --vfs-cache-poll-interval duration   Interval to poll the cache for stale objects (default 1m0s)
     --vfs-write-back duration            Time to writeback files after last use when using cache (default 5s)
@@ -218,7 +222,18 @@ flags.
 If using `--vfs-cache-max-size` note that the cache may exceed this size
 for two reasons.  Firstly because it is only checked every
 `--vfs-cache-poll-interval`.  Secondly because open files cannot be
-evicted from the cache.
+evicted from the cache. When `--vfs-cache-max-size`
+is exceeded, rclone will attempt to evict the least accessed files
+from the cache first. rclone will start with files that haven't
+been accessed for the longest. This cache flushing strategy is
+efficient and more relevant files are likely to remain cached.
+
+The `--vfs-cache-max-age` will evict files from the cache
+after the set time since last access has passed. The default value of
+1 hour will start evicting files from cache that haven't been accessed
+for 1 hour. When a cached file is accessed the 1 hour timer is reset to 0
+and will wait for 1 more hour before evicting. Specify the time with
+standard notation, s, m, h, d, w .
 
 You **should not** run two copies of rclone using the same VFS cache
 with the same or overlapping remotes if using `--vfs-cache-mode > off`.
@@ -437,6 +452,87 @@ _WARNING._ Contrary to `rclone size`, this flag ignores filters so that the
 result is accurate. However, this is very inefficient and may cost lots of API
 calls resulting in extra charges. Use it as a last resort and only with caching.
 
+## Auth Proxy
+
+If you supply the parameter `--auth-proxy /path/to/program` then
+rclone will use that program to generate backends on the fly which
+then are used to authenticate incoming requests.  This uses a simple
+JSON based protocol with input on STDIN and output on STDOUT.
+
+**PLEASE NOTE:** `--auth-proxy` and `--authorized-keys` cannot be used
+together, if `--auth-proxy` is set the authorized keys option will be
+ignored.
+
+There is an example program
+[bin/test_proxy.py](https://github.com/rclone/rclone/blob/master/test_proxy.py)
+in the rclone source code.
+
+The program's job is to take a `user` and `pass` on the input and turn
+those into the config for a backend on STDOUT in JSON format.  This
+config will have any default parameters for the backend added, but it
+won't use configuration from environment variables or command line
+options - it is the job of the proxy program to make a complete
+config.
+
+This config generated must have this extra parameter
+- `_root` - root to use for the backend
+
+And it may have this parameter
+- `_obscure` - comma separated strings for parameters to obscure
+
+If password authentication was used by the client, input to the proxy
+process (on STDIN) would look similar to this:
+
+```
+{
+	"user": "me",
+	"pass": "mypassword"
+}
+```
+
+If public-key authentication was used by the client, input to the
+proxy process (on STDIN) would look similar to this:
+
+```
+{
+	"user": "me",
+	"public_key": "AAAAB3NzaC1yc2EAAAADAQABAAABAQDuwESFdAe14hVS6omeyX7edc...JQdf"
+}
+```
+
+And as an example return this on STDOUT
+
+```
+{
+	"type": "sftp",
+	"_root": "",
+	"_obscure": "pass",
+	"user": "me",
+	"pass": "mypassword",
+	"host": "sftp.example.com"
+}
+```
+
+This would mean that an SFTP backend would be created on the fly for
+the `user` and `pass`/`public_key` returned in the output to the host given.  Note
+that since `_obscure` is set to `pass`, rclone will obscure the `pass`
+parameter before creating the backend (which is required for sftp
+backends).
+
+The program can manipulate the supplied `user` in any way, for example
+to make proxy to many different sftp backends, you could make the
+`user` be `user@example.com` and then set the `host` to `example.com`
+in the output and the user to `user`. For security you'd probably want
+to restrict the `host` to a limited list.
+
+Note that an internal cache is keyed on `user` so only use that for
+configuration, don't use `pass` or `public_key`.  This also means that if a user's
+password or public-key is changed the cache will need to expire (which takes 5 mins)
+before it takes effect.
+
+This can be used to build general purpose proxies to any kind of
+backend that rclone supports.  
+
 
 ```
 rclone serve http remote:path [flags]
@@ -446,6 +542,7 @@ rclone serve http remote:path [flags]
 
 ```
       --addr stringArray                       IPaddress:Port or :Port to bind server to (default [127.0.0.1:8080])
+      --auth-proxy string                      A program to use to create the backend from the auth
       --baseurl string                         Prefix for URLs - leave blank for root
       --cert string                            TLS PEM key (concatenation of certificate and CA certificate)
       --client-ca string                       Client certificate authority to verify clients with
@@ -472,7 +569,7 @@ rclone serve http remote:path [flags]
       --uid uint32                             Override the uid field set by the filesystem (not supported on Windows) (default 1000)
       --umask int                              Override the permission bits set by the filesystem (not supported on Windows) (default 2)
       --user string                            User name for authentication
-      --vfs-cache-max-age Duration             Max age of objects in the cache (default 1h0m0s)
+      --vfs-cache-max-age Duration             Max time since last access of objects in the cache (default 1h0m0s)
       --vfs-cache-max-size SizeSuffix          Max total size of objects in the cache (default off)
       --vfs-cache-mode CacheMode               Cache mode off|minimal|writes|full (default off)
       --vfs-cache-poll-interval Duration       Interval to poll the cache for stale objects (default 1m0s)

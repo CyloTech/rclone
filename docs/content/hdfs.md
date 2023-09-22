@@ -91,7 +91,7 @@ List the contents of a directory
 
 Sync the remote `directory` to `/home/local/directory`, deleting any excess files.
 
-    rclone sync -i remote:directory /home/local/directory
+    rclone sync --interactive remote:directory /home/local/directory
 
 ### Setting up your own HDFS instance for testing
 
@@ -205,9 +205,9 @@ Properties:
 Kerberos data transfer protection: authentication|integrity|privacy.
 
 Specifies whether or not authentication, data signature integrity
-checks, and wire encryption is required when communicating the the
-datanodes. Possible values are 'authentication', 'integrity' and
-'privacy'. Used only with KERBEROS enabled.
+checks, and wire encryption are required when communicating with
+the datanodes. Possible values are 'authentication', 'integrity'
+and 'privacy'. Used only with KERBEROS enabled.
 
 Properties:
 

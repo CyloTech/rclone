@@ -172,7 +172,7 @@ List the contents of a bucket
 Sync `/home/local/directory` to the remote bucket, deleting any excess
 files in the bucket.
 
-    rclone sync -i /home/local/directory remote:bucket
+    rclone sync --interactive /home/local/directory remote:bucket
 
 ### Service Account support
 
@@ -317,6 +317,19 @@ Properties:
 
 - Config:      project_number
 - Env Var:     RCLONE_GCS_PROJECT_NUMBER
+- Type:        string
+- Required:    false
+
+#### --gcs-user-project
+
+User project.
+
+Optional - needed only for requester pays.
+
+Properties:
+
+- Config:      user_project
+- Env Var:     RCLONE_GCS_USER_PROJECT
 - Type:        string
 - Required:    false
 
@@ -552,6 +565,24 @@ Properties:
     - "DURABLE_REDUCED_AVAILABILITY"
         - Durable reduced availability storage class
 
+#### --gcs-env-auth
+
+Get GCP IAM credentials from runtime (environment variables or instance meta data if no env vars).
+
+Only applies if service_account_file and service_account_credentials is blank.
+
+Properties:
+
+- Config:      env_auth
+- Env Var:     RCLONE_GCS_ENV_AUTH
+- Type:        bool
+- Default:     false
+- Examples:
+    - "false"
+        - Enter credentials in the next step.
+    - "true"
+        - Get GCP IAM credentials from the environment (env vars or IAM).
+
 ### Advanced options
 
 Here are the Advanced options specific to google cloud storage (Google Cloud Storage (this is not Google Drive)).
@@ -592,6 +623,21 @@ Properties:
 - Env Var:     RCLONE_GCS_TOKEN_URL
 - Type:        string
 - Required:    false
+
+#### --gcs-directory-markers
+
+Upload an empty object with a trailing slash when a new directory is created
+
+Empty folders are unsupported for bucket based remotes, this option creates an empty
+object ending with "/", to persist the folder.
+
+
+Properties:
+
+- Config:      directory_markers
+- Env Var:     RCLONE_GCS_DIRECTORY_MARKERS
+- Type:        bool
+- Default:     false
 
 #### --gcs-no-check-bucket
 

@@ -26,6 +26,11 @@ import (
 )
 
 var (
+	// templateString is the template used in the authorization webserver
+	templateString string
+)
+
+var (
 	// TitleBarRedirectURL is the OAuth2 redirect URL to use when the authorization
 	// code should be returned in the title bar of the browser, with the page text
 	// prompting the user to copy the code and paste it in the application.
@@ -49,8 +54,8 @@ var (
 	// redirects to the local webserver
 	RedirectPublicSecureURL = "https://oauth.rclone.org/"
 
-	// AuthResponseTemplate is a template to handle the redirect URL for oauth requests
-	AuthResponseTemplate = `<!DOCTYPE html>
+	// DefaultAuthResponseTemplate is the default template used in the authorization webserver
+	DefaultAuthResponseTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -204,6 +209,37 @@ func (ts *TokenSource) reReadToken() (changed bool) {
 	return changed
 }
 
+type retrieveErrResponse struct {
+	Error string `json:"error"`
+}
+
+// If err is nil or an error other than fatal OAuth errors, returns err itself.
+// Otherwise returns a more user-friendly error.
+func maybeWrapOAuthError(err error, remoteName string) (newErr error) {
+	newErr = err
+	if rErr, ok := err.(*oauth2.RetrieveError); ok {
+		if rErr.Response.StatusCode == 400 || rErr.Response.StatusCode == 401 {
+			fs.Debugf(remoteName, "got fatal oauth error: %v", rErr)
+			var resp retrieveErrResponse
+			if err = json.Unmarshal(rErr.Body, &resp); err != nil {
+				newErr = fmt.Errorf("(can't decode error info) - try refreshing token with \"rclone config reconnect %s:\"", remoteName)
+				return
+			}
+			var suggestion string
+			switch resp.Error {
+			case "invalid_client", "unauthorized_client", "unsupported_grant_type", "invalid_scope":
+				suggestion = "if you're using your own client id/secret, make sure they're properly set up following the docs"
+			case "invalid_grant":
+				fallthrough
+			default:
+				suggestion = fmt.Sprintf("maybe token expired? - try refreshing with \"rclone config reconnect %s:\"", remoteName)
+			}
+			newErr = fmt.Errorf("%s: %s", resp.Error, suggestion)
+		}
+	}
+	return
+}
+
 // Token returns a token or an error.
 // Token must be safe for concurrent use by multiple goroutines.
 // The returned Token must not be modified.
@@ -242,11 +278,15 @@ func (ts *TokenSource) Token() (*oauth2.Token, error) {
 		if err == nil {
 			break
 		}
+		if newErr := maybeWrapOAuthError(err, ts.name); newErr != err {
+			err = newErr // Fatal OAuth error
+			break
+		}
 		fs.Debugf(ts.name, "Token refresh failed try %d/%d: %v", i, maxTries, err)
 		time.Sleep(1 * time.Second)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("couldn't fetch token - maybe it has expired? - refresh with \"rclone config reconnect %s:\": %w", ts.name, err)
+		return nil, fmt.Errorf("couldn't fetch token: %w", err)
 	}
 	changed = changed || (*token != *ts.token)
 	ts.token = token
@@ -552,6 +592,23 @@ version recommended):
 		}
 		return fs.ConfigGoto(newState("*oauth-done"))
 	case "*oauth-do":
+		// Make sure we can read the HTML template file if it was specified.
+		configTemplateFile, _ := m.Get("config_template_file")
+		configTemplateString, _ := m.Get("config_template")
+
+		if configTemplateFile != "" {
+			dat, err := os.ReadFile(configTemplateFile)
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to read template file: %w", err)
+			}
+
+			templateString = string(dat)
+		} else if configTemplateString != "" {
+			templateString = configTemplateString
+		} else {
+			templateString = DefaultAuthResponseTemplate
+		}
 		code := in.Result
 		opt, err := getOAuth()
 		if err != nil {
@@ -721,7 +778,7 @@ func (s *authServer) handleAuth(w http.ResponseWriter, req *http.Request) {
 	reply := func(status int, res *AuthResult) {
 		w.WriteHeader(status)
 		w.Header().Set("Content-Type", "text/html")
-		var t = template.Must(template.New("authResponse").Parse(AuthResponseTemplate))
+		var t = template.Must(template.New("authResponse").Parse(templateString))
 		if err := t.Execute(w, res); err != nil {
 			fs.Debugf(nil, "Could not execute template for web response.")
 		}

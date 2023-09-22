@@ -28,6 +28,30 @@ supported hash on the backend or you can use a named hash such as
 "MD5" or "SHA-1". Use the [hashsum](/commands/rclone_hashsum/) command
 to see the full list.
 
+## Access WebDAV on Windows
+WebDAV shared folder can be mapped as a drive on Windows, however the default settings prevent it.
+Windows will fail to connect to the server using insecure Basic authentication.
+It will not even display any login dialog. Windows requires SSL / HTTPS connection to be used with Basic.
+If you try to connect via Add Network Location Wizard you will get the following error:
+"The folder you entered does not appear to be valid. Please choose another".
+However, you still can connect if you set the following registry key on a client machine:
+HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\WebClient\Parameters\BasicAuthLevel to 2.
+The BasicAuthLevel can be set to the following values:
+    0 - Basic authentication disabled
+    1 - Basic authentication enabled for SSL connections only
+    2 - Basic authentication enabled for SSL connections and for non-SSL connections
+If required, increase the FileSizeLimitInBytes to a higher value.
+Navigate to the Services interface, then restart the WebClient service.
+
+## Access Office applications on WebDAV
+Navigate to following registry HKEY_CURRENT_USER\Software\Microsoft\Office\[14.0/15.0/16.0]\Common\Internet
+Create a new DWORD BasicAuthLevel with value 2.
+    0 - Basic authentication disabled
+    1 - Basic authentication enabled for SSL connections only
+    2 - Basic authentication enabled for SSL and for non-SSL connections
+
+https://learn.microsoft.com/en-us/office/troubleshoot/powerpoint/office-opens-blank-from-sharepoint
+
 
 ## Server options
 
@@ -107,6 +131,10 @@ By default this will serve files without needing a login.
 
 You can either use an htpasswd file which can take lots of users, or
 set a single username and password with the `--user` and `--pass` flags.
+
+If no static users are configured by either of the above methods, and client
+certificates are required by the `--client-ca` flag passed to the server, the
+client certificate common name will be considered as the username.
 
 Use `--htpasswd /path/to/htpasswd` to provide an htpasswd file.  This is
 in standard apache format and supports MD5, SHA1 and BCrypt for basic
@@ -200,7 +228,7 @@ find that you need one or the other or both.
 
     --cache-dir string                   Directory rclone will use for caching.
     --vfs-cache-mode CacheMode           Cache mode off|minimal|writes|full (default off)
-    --vfs-cache-max-age duration         Max age of objects in the cache (default 1h0m0s)
+    --vfs-cache-max-age duration         Max time since last access of objects in the cache (default 1h0m0s)
     --vfs-cache-max-size SizeSuffix      Max total size of objects in the cache (default off)
     --vfs-cache-poll-interval duration   Interval to poll the cache for stale objects (default 1m0s)
     --vfs-write-back duration            Time to writeback files after last use when using cache (default 5s)
@@ -223,7 +251,18 @@ flags.
 If using `--vfs-cache-max-size` note that the cache may exceed this size
 for two reasons.  Firstly because it is only checked every
 `--vfs-cache-poll-interval`.  Secondly because open files cannot be
-evicted from the cache.
+evicted from the cache. When `--vfs-cache-max-size`
+is exceeded, rclone will attempt to evict the least accessed files
+from the cache first. rclone will start with files that haven't
+been accessed for the longest. This cache flushing strategy is
+efficient and more relevant files are likely to remain cached.
+
+The `--vfs-cache-max-age` will evict files from the cache
+after the set time since last access has passed. The default value of
+1 hour will start evicting files from cache that haven't been accessed
+for 1 hour. When a cached file is accessed the 1 hour timer is reset to 0
+and will wait for 1 more hour before evicting. Specify the time with
+standard notation, s, m, h, d, w .
 
 You **should not** run two copies of rclone using the same VFS cache
 with the same or overlapping remotes if using `--vfs-cache-mode > off`.
@@ -561,7 +600,7 @@ rclone serve webdav remote:path [flags]
       --uid uint32                             Override the uid field set by the filesystem (not supported on Windows) (default 1000)
       --umask int                              Override the permission bits set by the filesystem (not supported on Windows) (default 2)
       --user string                            User name for authentication
-      --vfs-cache-max-age Duration             Max age of objects in the cache (default 1h0m0s)
+      --vfs-cache-max-age Duration             Max time since last access of objects in the cache (default 1h0m0s)
       --vfs-cache-max-size SizeSuffix          Max total size of objects in the cache (default off)
       --vfs-cache-mode CacheMode               Cache mode off|minimal|writes|full (default off)
       --vfs-cache-poll-interval Duration       Interval to poll the cache for stale objects (default 1m0s)
