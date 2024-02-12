@@ -92,19 +92,24 @@ func init() {
 				Value: "sharepoint-ntlm",
 				Help:  "Sharepoint with NTLM authentication, usually self-hosted or on-premises",
 			}, {
+				Value: "rclone",
+				Help:  "rclone WebDAV server to serve a remote over HTTP via the WebDAV protocol",
+			}, {
 				Value: "other",
 				Help:  "Other site/service or software",
 			}},
 		}, {
-			Name: "user",
-			Help: "User name.\n\nIn case NTLM authentication is used, the username should be in the format 'Domain\\User'.",
+			Name:      "user",
+			Help:      "User name.\n\nIn case NTLM authentication is used, the username should be in the format 'Domain\\User'.",
+			Sensitive: true,
 		}, {
 			Name:       "pass",
 			Help:       "Password.",
 			IsPassword: true,
 		}, {
-			Name: "bearer_token",
-			Help: "Bearer token instead of user/pass (e.g. a Macaroon).",
+			Name:      "bearer_token",
+			Help:      "Bearer token instead of user/pass (e.g. a Macaroon).",
+			Sensitive: true,
 		}, {
 			Name:     "bearer_token_command",
 			Help:     "Command to run to get a bearer token.",
@@ -642,6 +647,10 @@ func (f *Fs) setQuirks(ctx context.Context, vendor string) error {
 		// so we must perform an extra check to detect this
 		// condition and return a proper error code.
 		f.checkBeforePurge = true
+	case "rclone":
+		f.canStream = true
+		f.precision = time.Second
+		f.useOCMtime = true
 	case "other":
 	default:
 		fs.Debugf(f, "Unknown vendor %q", vendor)

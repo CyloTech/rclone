@@ -1,5 +1,7 @@
 [<img src="https://rclone.org/img/logo_on_light__horizontal_color.svg" width="50%" alt="rclone logo">](https://rclone.org/#gh-light-mode-only)
 [<img src="https://rclone.org/img/logo_on_dark__horizontal_color.svg" width="50%" alt="rclone logo">](https://rclone.org/#gh-dark-mode-only)
+[<img src="https://rclone.org/img/logos/warp-github-light.svg" title="Visit warp.dev to learn more." align="right">](https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=rclone_20231103#gh-light-mode-only)
+[<img src="https://rclone.org/img/logos/warp-github-dark.svg" title="Visit warp.dev to learn more." align="right">](https://www.warp.dev/?utm_source=github&utm_medium=referral&utm_campaign=rclone_20231103#gh-dark-mode-only)
 
 [Website](https://rclone.org) |
 [Documentation](https://rclone.org/docs/) |
@@ -46,17 +48,22 @@ Rclone *("rsync for cloud storage")* is a command-line program to sync files and
   * HiDrive [:page_facing_up:](https://rclone.org/hidrive/)
   * HTTP [:page_facing_up:](https://rclone.org/http/)
   * Huawei Cloud Object Storage Service(OBS) [:page_facing_up:](https://rclone.org/s3/#huawei-obs)
+  * ImageKit [:page_facing_up:](https://rclone.org/imagekit/)
   * Internet Archive [:page_facing_up:](https://rclone.org/internetarchive/)
   * Jottacloud [:page_facing_up:](https://rclone.org/jottacloud/)
   * IBM COS S3 [:page_facing_up:](https://rclone.org/s3/#ibm-cos-s3)
   * IONOS Cloud [:page_facing_up:](https://rclone.org/s3/#ionos)
   * Koofr [:page_facing_up:](https://rclone.org/koofr/)
+  * Leviia Object Storage [:page_facing_up:](https://rclone.org/s3/#leviia)
   * Liara Object Storage [:page_facing_up:](https://rclone.org/s3/#liara-object-storage)
+  * Linkbox [:page_facing_up:](https://rclone.org/linkbox)
+  * Linode Object Storage [:page_facing_up:](https://rclone.org/s3/#linode)
   * Mail.ru Cloud [:page_facing_up:](https://rclone.org/mailru/)
   * Memset Memstore [:page_facing_up:](https://rclone.org/swift/)
   * Mega [:page_facing_up:](https://rclone.org/mega/)
   * Memory [:page_facing_up:](https://rclone.org/memory/)
   * Microsoft Azure Blob Storage [:page_facing_up:](https://rclone.org/azureblob/)
+  * Microsoft Azure Files Storage [:page_facing_up:](https://rclone.org/azurefiles/)
   * Microsoft OneDrive [:page_facing_up:](https://rclone.org/onedrive/)
   * Minio [:page_facing_up:](https://rclone.org/s3/#minio)
   * Nextcloud [:page_facing_up:](https://rclone.org/webdav/#nextcloud)
@@ -72,8 +79,10 @@ Rclone *("rsync for cloud storage")* is a command-line program to sync files and
   * PikPak [:page_facing_up:](https://rclone.org/pikpak/)
   * premiumize.me [:page_facing_up:](https://rclone.org/premiumizeme/)
   * put.io [:page_facing_up:](https://rclone.org/putio/)
+  * Proton Drive [:page_facing_up:](https://rclone.org/protondrive/)
   * QingStor [:page_facing_up:](https://rclone.org/qingstor/)
   * Qiniu Cloud Object Storage (Kodo) [:page_facing_up:](https://rclone.org/s3/#qiniu)
+  * Quatrix [:page_facing_up:](https://rclone.org/quatrix/)
   * Rackspace Cloud Files [:page_facing_up:](https://rclone.org/swift/)
   * RackCorp Object Storage [:page_facing_up:](https://rclone.org/s3/#RackCorp)
   * Scaleway [:page_facing_up:](https://rclone.org/s3/#scaleway)
@@ -84,6 +93,7 @@ Rclone *("rsync for cloud storage")* is a command-line program to sync files and
   * StackPath [:page_facing_up:](https://rclone.org/s3/#stackpath)
   * Storj [:page_facing_up:](https://rclone.org/storj/)
   * SugarSync [:page_facing_up:](https://rclone.org/sugarsync/)
+  * Synology C2 Object Storage [:page_facing_up:](https://rclone.org/s3/#synology-c2)
   * Tencent Cloud Object Storage (COS) [:page_facing_up:](https://rclone.org/s3/#tencent-cos)
   * Wasabi [:page_facing_up:](https://rclone.org/s3/#wasabi)
   * WebDAV [:page_facing_up:](https://rclone.org/webdav/)
@@ -113,6 +123,7 @@ These backends adapt or modify other storage providers
   * Partial syncs supported on a whole file basis
   * [Copy](https://rclone.org/commands/rclone_copy/) mode to just copy new/changed files
   * [Sync](https://rclone.org/commands/rclone_sync/) (one way) mode to make a directory identical
+  * [Bisync](https://rclone.org/bisync/) (two way) to keep two directories in sync bidirectionally
   * [Check](https://rclone.org/commands/rclone_check/) mode to check for file hash equality
   * Can sync to and from network, e.g. two different cloud accounts
   * Optional large file chunking ([Chunker](https://rclone.org/chunker/))
