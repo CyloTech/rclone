@@ -443,7 +443,7 @@ func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err e
 	}
 
 	URL := f.url(dir)
-	files, err := f.netStorageDirRequest(ctx, dir, URL)
+	files, err := f.netStorageDirRequest(ctx, URL)
 	if err != nil {
 		return nil, err
 	}
@@ -923,16 +923,14 @@ func (f *Fs) netStorageStatRequest(ctx context.Context, URL string, directory bo
 		entrywanted := (directory && files[i].Type == "dir") ||
 			(!directory && files[i].Type != "dir")
 		if entrywanted {
-			filestamp := files[0]
-			files[0] = files[i]
-			files[i] = filestamp
+			files[0], files[i] = files[i], files[0]
 		}
 	}
 	return files, nil
 }
 
 // netStorageDirRequest performs a NetStorage dir request
-func (f *Fs) netStorageDirRequest(ctx context.Context, dir string, URL string) ([]File, error) {
+func (f *Fs) netStorageDirRequest(ctx context.Context, URL string) ([]File, error) {
 	const actionHeader = "version=1&action=dir&format=xml&encoding=utf-8"
 	statResp := &Stat{}
 	if _, err := f.callBackend(ctx, URL, "GET", actionHeader, false, statResp, nil); err != nil {

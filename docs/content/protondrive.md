@@ -46,7 +46,7 @@ Type of storage to configure.
 Choose a number from below, or type in your own value
 [snip]
 XX / Proton Drive
-   \ "Proton Drive"
+   \ "protondrive"
 [snip]
 Storage> protondrive
 User name
@@ -65,12 +65,12 @@ Option 2fa.
 Enter a value. Press Enter to leave empty.
 2fa> 123456
 Remote config
---------------------
-[remote]
-type = protondrive
-user = you@protonmail.com
-pass = *** ENCRYPTED ***
---------------------
+Configuration complete.
+Options:
+- type: protondrive
+- user: you@protonmail.com
+- pass: *** ENCRYPTED ***
+Keep this "remote" remote?
 y) Yes this is OK
 e) Edit this remote
 d) Delete this remote
@@ -333,7 +333,7 @@ Properties:
 
 #### --protondrive-description
 
-Description of the remote
+Description of the remote.
 
 Properties:
 
